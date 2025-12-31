@@ -1,0 +1,81 @@
+                    visible_metrics=visible_metrics.read_only()
+                    on_toggle=toggle_metric
+                />
+            </div>
+
+            <Show when=move || is_wallet_mode.get()>
+                <div class="wallet-analytics-panel">
+                    <div class="wallet-analytics-header">
+                        <span class="wallet-label">"Wallet Analytics"</span>
+                        <span class="wallet-address">
+                            {move || wallet_address.get().unwrap_or_default()}
+                        </span>
+                    </div>
+                    <div class="coming-soon-placeholder">
+                        <span class="coming-soon-badge">"Coming Soon v2"</span>
+                        <span class="coming-soon-text">"Wallet-specific charts and analytics"</span>
+                    </div>
+                </div>
+            </Show>
+
+            <div class="chart-footer">
+                <div class="resolution-buttons">
+                    <For
+                        each={move || ChartResolution::all().iter().copied()}
+                        key=|r| r.label()
+                        children=move |r| {
+                            let is_active = move || resolution.get() == r;
+                            view! {
+                                <button
+                                    class:active=is_active
+                                    class="resolution-btn"
+                                    on:click=move |_| resolution.set(r)
+                                >
+                                    {r.label()}
+                                </button>
+                            }
+                        }
+                    />
+                </div>
+
+                <div class="lookback-buttons">
+                    <For
+                        each={move || ChartLookback::all().iter().copied()}
+                        key=|lb| lb.label()
+                        children=move |lb| {
+                            let is_active = move || lookback.get() == lb;
+                            view! {
+                                <button
+                                    class:active=is_active
+                                    class="lookback-btn"
+                                    on:click=move |_| lookback.set(lb)
+                                >
+                                    {lb.label()}
+                                </button>
+                            }
+                        }
+                    />
+                </div>
+
+                <div class="chart-type-selector">
+                    <button
+                        class:active=move || chart_type.get() == ChartType::Area
+                        on:click=move |_| chart_type.set(ChartType::Area)
+                    >
+                        "Area"
+                    </button>
+                    <button
+                        class:active=move || chart_type.get() == ChartType::Line
+                        on:click=move |_| chart_type.set(ChartType::Line)
+                    >
+                        "Line"
+                    </button>
+                    <button
+                        class:active=move || chart_type.get() == ChartType::Candle
+                        on:click=move |_| chart_type.set(ChartType::Candle)
+                    >
+                        "Candle"
+                    </button>
+                </div>
+
+                // Fetch time indicator
