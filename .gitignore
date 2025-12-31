@@ -1,9 +1,14 @@
-# ============================================================================
-# BUILD ARTIFACTS
-# ============================================================================
+# ==============================================================================
+# USDFC Analytics Terminal - .gitignore
+# Comprehensive ignore rules for GitHub release
+# ==============================================================================
 
+# ==============================================================================
+# 1. BUILD ARTIFACTS
+# ==============================================================================
+
+# Rust/Cargo build output
 /target/
-/Cargo.lock
 *.rlib
 *.rmeta
 *.so
@@ -11,117 +16,253 @@
 *.dll
 *.exe
 *.pdb
+*.a
+*.lib
+
+# WebAssembly output
 /pkg/
 /dist/
 *.wasm
+*.wasm.map
 *.js.map
-node_modules/
+
+# Leptos/WASM build cache
+.leptos_cache/
+target/site/
+target/front/
+
+# Next.js / Node build output
+.next/
+out/
 build/
+node_modules/
+.turbo/
 
-# ============================================================================
-# ENVIRONMENT & CONFIGURATION
-# ============================================================================
+# ==============================================================================
+# 2. DEPENDENCIES
+# ==============================================================================
 
+# Node.js
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-debug.log*
+
+# Rust
+# Note: Cargo.lock IS committed for reproducible builds
+.cargo/
+!.cargo/config.toml
+
+# ==============================================================================
+# 3. ENVIRONMENT FILES (SENSITIVE - NEVER COMMIT)
+# ==============================================================================
+
+# Main environment files
 .env
 .env.local
-.env.*.local
-.env.production.local
+.env.development
+.env.development.local
+.env.test
 .env.test.local
+.env.production
+.env.production.local
+.env.staging
 .env.override
+*.env
 
-# ============================================================================
-# IDE & EDITOR
-# ============================================================================
+# Keep example as template
+!.env.example
+!.env.sample
 
+# ==============================================================================
+# 4. IDE & EDITOR SETTINGS
+# ==============================================================================
+
+# VS Code
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
 *.code-workspace
+
+# JetBrains IDEs (IntelliJ, CLion, RustRover)
 .idea/
 *.iml
 *.iws
 *.ipr
-*.xml
+
+# Vim/Neovim
 *.swp
+*.swo
 *~
 .*.swp
 .*.swo
 \#*\#
 .#*
+Session.vim
+.netrwhist
 
-# ============================================================================
-# OS & TEMPORARY FILES
-# ============================================================================
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
 
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# ==============================================================================
+# 5. OS-SPECIFIC FILES
+# ==============================================================================
+
+# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+*.lnk
+
+# Linux
 .directory
+*~
+.fuse_hidden*
+.nfs*
 
-# ============================================================================
-# LOGS & DEBUGGING
-# ============================================================================
+# ==============================================================================
+# 6. LOGS & DEBUGGING
+# ==============================================================================
 
+# Log files
 *.log
 logs/
 server.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Debug output
 *.out
-RUST_BACKTRACE
 debug/
 *.dSYM/
+RUST_BACKTRACE
 
-# ============================================================================
-# DATABASE & DATA
-# ============================================================================
+# Profiling
+*.prof
+*.trace
+perf.data*
 
+# ==============================================================================
+# 7. DATABASE & DATA FILES
+# ==============================================================================
+
+# SQLite databases
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 metrics_history.db
+
+# Data directories
 /data/
-*.sql
-*.sql.bak
 dumps/
 
-# ============================================================================
-# GENERATED FILES
-# ============================================================================
+# SQL files (may contain sensitive data)
+*.sql
+*.sql.bak
+*.dump
 
+# ==============================================================================
+# 8. GENERATED FILES
+# ==============================================================================
+
+# Rust generated code
 .generated.rs
 src/.generated/
 .auto.
-.leptos_cache/
-.cargo/
 
-# ============================================================================
-# BACKUPS & ARCHIVES
-# ============================================================================
+# GraphQL generated
+generated/
+*.generated.ts
+*.generated.rs
 
+# TypeScript
+*.tsbuildinfo
+
+# OpenAPI/Swagger
+*.generated.yaml
+*.generated.json
+
+# ==============================================================================
+# 9. BACKUPS & ARCHIVES
+# ==============================================================================
+
+# Backup directories
 /backup/
 /backups/
+backup_*/
+*_backup/
+*_backup_*/
+
+# Backup files
 *.bak
 *.backup
 *.bkp
 *~backup
 *.old
+*.orig
+*.save
+
+# Archives (likely large/binary)
 *.zip
 *.tar
 *.tar.gz
+*.tgz
+*.tar.bz2
 *.rar
 *.7z
+*.gz
+*.bz2
+*.xz
 
-# ============================================================================
-# INTERNAL ANALYSIS & PLANNING (Development only - not for public repo)
-# ============================================================================
+# ==============================================================================
+# 10. INTERNAL/PRIVATE DOCUMENTS (Development only)
+# ==============================================================================
 
-# Grant analysis and strategy
+# Scripts folder (development tools)
+/scripts/
+
+# Docs folder (keep only openapi.yaml)
+/docs/
+!/docs/openapi.yaml
+
+# Grant analysis and strategy (internal)
 devgrants_analysis.md
 GRANT_STRATEGY.md
+VISION.md
+ROADMAP.md
 
-# Internal planning docs (keep locally, don't commit)
+# Internal planning documents
 ADVANCED_CHART_PLAN.md
 COMPREHENSIVE_DATA_MAPPING.md
 DATA_SOURCE_MATRIX.md
@@ -130,65 +271,157 @@ PRODUCTION_AUDIT.md
 REORGANIZATION_PLAN.md
 UI_UX_COMPLETE_AUDIT.md
 RELEASE_PLAN.md
+ARCHITECTURE.md
 
-# Internal analysis scripts
-scripts/SCRIPT_ISSUES_REPORT.md
+# Analysis output files
 comprehensive_data_report.json
 data_exploration_results.json
 insight_chart_data.json
 
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
+# ==============================================================================
+# 11. SECURITY & CREDENTIALS (CRITICAL - NEVER COMMIT)
+# ==============================================================================
 
-yarn.lock
-pnpm-lock.yaml
+# Private keys and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
 
-# ============================================================================
-# TESTING & COVERAGE
-# ============================================================================
+# Secret files
+*.secret
+secrets.*
+credentials*
+.credentials/
+.secrets/
 
+# AWS
+.aws/
+aws-credentials*
+
+# SSH
+id_rsa*
+id_ed25519*
+*.pub
+
+# ==============================================================================
+# 12. TESTING & COVERAGE
+# ==============================================================================
+
+# Test output
 test-output/
 test-results/
+*.test.js.snap
+
+# Coverage reports
 coverage/
 *.lcov
 .nyc_output/
+htmlcov/
+*.gcov
+*.gcda
+*.gcno
 
-# ============================================================================
-# CI/CD
-# ============================================================================
+# ==============================================================================
+# 13. CI/CD & DEPLOYMENT
+# ==============================================================================
 
 ci-logs/
+.deploy/
+.vercel/
+.netlify/
+.serverless/
 
-# ============================================================================
-# PYTHON
-# ============================================================================
+# Docker (but keep Dockerfile, .dockerignore, fly.toml, railway.toml)
+docker-compose.override.yml
+.docker/
+# Docker build cache
+.docker-cache/
+*.dockercache
 
+# ==============================================================================
+# 14. RUNTIME & PROCESS FILES
+# ==============================================================================
+
+# PID files
+*.pid
+*.seed
+*.pid.lock
+
+# Sockets
+*.sock
+
+# ==============================================================================
+# 15. MISCELLANEOUS
+# ==============================================================================
+
+# Python (if any scripts exist)
 __pycache__/
 *.py[cod]
 *$py.class
 .Python
 pip-log.txt
+*.egg-info/
+.eggs/
+venv/
+.venv/
 
-# ============================================================================
-# KEEP IN GIT
-# ============================================================================
+# Jupyter notebooks (checkpoints)
+.ipynb_checkpoints/
 
-# These files should be committed:
-# - src/**/*.rs (source code)
-# - Cargo.toml (manifest)
-# - Cargo.lock (dependency lock - optional for binaries)
-# - .env.example (environment template)
-# - /docs/*.md (public documentation)
-# - /docs/openapi.yaml (API specification)
-# - .github/workflows/ (CI configuration)
-# - LICENSE (MIT license)
-# - README.md (public readme)
-# - INSTALL.md (installation guide)
-# - ARCHITECTURE.md (technical docs)
-# - API_REFERENCE.md (API docs)
-# - ROADMAP.md (public roadmap)
-# - VISION.md (strategic vision)
-# - CONTRIBUTING.md (contributor guide)
-# - public/ (static assets)
-# - package.json (if Node is used)
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Claude AI session files
+.claude/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ==============================================================================
+# FILES TO KEEP IN GIT (Reference)
+# ==============================================================================
+
+# Source Code:
+# - src/**/*.rs
+# - src/**/*.css
+# - public/**/*
+
+# Configuration:
+# - Cargo.toml
+# - Cargo.lock (for reproducible builds)
+# - package.json
+# - .env.example
+# - railway.toml
+# - fly.toml
+# - Dockerfile
+# - .dockerignore
+
+# Documentation (Public):
+# - README.md
+# - INSTALL.md
+# - CONTRIBUTING.md
+# - LICENSE
+# - API.md
+# - TESTING.md
+# - DEPLOY.md
+# - docs/*.md (architecture, API reference)
+# - docs/openapi.yaml
+
+# CI/CD:
+# - .github/workflows/*.yml
+
+# ==============================================================================
+
+# New docs (not ready for push)
+TESTING.md
+DEPLOY.md

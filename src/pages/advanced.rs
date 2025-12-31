@@ -346,9 +346,59 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                     .join(",");
                 let volume_data_json = format!("[{}]", volume_data_json);
 
+                // Build data arrays for historical metrics (from MetricSnapshot)
+                let liquidity_data_json: String = data.liquidity_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let liquidity_data_json = format!("[{}]", liquidity_data_json);
+
+                let tcr_data_json: String = data.tcr_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let tcr_data_json = format!("[{}]", tcr_data_json);
+
+                let supply_data_json: String = data.supply_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let supply_data_json = format!("[{}]", supply_data_json);
+
+                let holders_data_json: String = data.holders_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let holders_data_json = format!("[{}]", holders_data_json);
+
+                let lend_apr_data_json: String = data.lend_apr_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let lend_apr_data_json = format!("[{}]", lend_apr_data_json);
+
+                let borrow_apr_data_json: String = data.borrow_apr_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let borrow_apr_data_json = format!("[{}]", borrow_apr_data_json);
+
+                let transfers_data_json: String = data.transfers_data.iter()
+                    .map(|(ts, v)| format!("[{},{}]", ts * 1000, v))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let transfers_data_json = format!("[{}]", transfers_data_json);
+
                 // Build series configuration
                 let show_price = metrics.contains(&ChartMetric::Price);
                 let show_volume = metrics.contains(&ChartMetric::Volume);
+                let show_liquidity = metrics.contains(&ChartMetric::Liquidity);
+                let show_tcr = metrics.contains(&ChartMetric::TCR);
+                let show_supply = metrics.contains(&ChartMetric::Supply);
+                let show_holders = metrics.contains(&ChartMetric::Holders);
+                let show_lend_apr = metrics.contains(&ChartMetric::LendAPR);
+                let show_borrow_apr = metrics.contains(&ChartMetric::BorrowAPR);
+                let show_transfers = metrics.contains(&ChartMetric::Transfers);
 
                 let area_style = if show_area {
                     r#"areaStyle: {
@@ -392,6 +442,15 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                         // Store price data for % change calculations
                         var priceData = {price_data};
                         var volumeData = {volume_data};
+
+                        // Historical metric data from snapshots
+                        var liquidityData = {liquidity_data};
+                        var tcrData = {tcr_data};
+                        var supplyData = {supply_data};
+                        var holdersData = {holders_data};
+                        var lendAprData = {lend_apr_data};
+                        var borrowAprData = {borrow_apr_data};
+                        var transfersData = {transfers_data};
 
                         // Track visible range start value (updated on dataZoom)
                         var visibleStartIndex = 0;
@@ -447,6 +506,102 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                 yAxisIndex: 1,
                                 data: volumeData,
                                 barMaxWidth: 20
+                            }});
+                        }}
+
+                        // Liquidity series (from historical snapshots)
+                        if ({show_liquidity} && liquidityData.length > 0) {{
+                            series.push({{
+                                name: 'Liquidity',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#06b6d4' }},
+                                itemStyle: {{ color: '#06b6d4' }},
+                                data: liquidityData,
+                                yAxisIndex: 2
+                            }});
+                        }}
+
+                        // TCR series (from historical snapshots)
+                        if ({show_tcr} && tcrData.length > 0) {{
+                            series.push({{
+                                name: 'TCR',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#22c55e' }},
+                                itemStyle: {{ color: '#22c55e' }},
+                                data: tcrData,
+                                yAxisIndex: 3
+                            }});
+                        }}
+
+                        // Supply series (from historical snapshots)
+                        if ({show_supply} && supplyData.length > 0) {{
+                            series.push({{
+                                name: 'Supply',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#f59e0b' }},
+                                itemStyle: {{ color: '#f59e0b' }},
+                                data: supplyData,
+                                yAxisIndex: 4
+                            }});
+                        }}
+
+                        // Holders series (from historical snapshots)
+                        if ({show_holders} && holdersData.length > 0) {{
+                            series.push({{
+                                name: 'Holders',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#ec4899' }},
+                                itemStyle: {{ color: '#ec4899' }},
+                                data: holdersData,
+                                yAxisIndex: 5
+                            }});
+                        }}
+
+                        // Lend APR series (from historical snapshots)
+                        if ({show_lend_apr} && lendAprData.length > 0) {{
+                            series.push({{
+                                name: 'Lend APR',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#10b981' }},
+                                itemStyle: {{ color: '#10b981' }},
+                                data: lendAprData,
+                                yAxisIndex: 6
+                            }});
+                        }}
+
+                        // Borrow APR series (from historical snapshots)
+                        if ({show_borrow_apr} && borrowAprData.length > 0) {{
+                            series.push({{
+                                name: 'Borrow APR',
+                                type: 'line',
+                                smooth: true,
+                                showSymbol: false,
+                                lineStyle: {{ width: 2, color: '#f97316' }},
+                                itemStyle: {{ color: '#f97316' }},
+                                data: borrowAprData,
+                                yAxisIndex: 6  // Share with Lend APR
+                            }});
+                        }}
+
+                        // Transfers series (from Blockscout)
+                        if ({show_transfers} && transfersData.length > 0) {{
+                            series.push({{
+                                name: 'Transfers',
+                                type: 'bar',
+                                barMaxWidth: 15,
+                                itemStyle: {{ color: 'rgba(99, 102, 241, 0.7)' }},
+                                data: transfersData,
+                                yAxisIndex: 7
                             }});
                         }}
 
@@ -531,26 +686,59 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                                 + formatChange(changeFromStart, 'Start')
                                                 + '</div>';
 
-                                        }} else {{
-                                            // Volume
+                                        }} else if (item.seriesName === 'Volume') {{
                                             var vol = item.data[1] || item.data.value[1];
-                                            currentValue = vol;
                                             value = '$' + vol.toLocaleString(undefined, {{maximumFractionDigits: 0}});
-
-                                            // Calculate % changes for volume
-                                            var prevVolValue = dataIndex > 0 ? getValue(volumeData[dataIndex - 1], 'bar') : currentValue;
-                                            var startVolValue = getValue(volumeData[visibleStartIndex], 'bar');
-
-                                            var volChangeFromPrev = prevVolValue ? ((currentValue - prevVolValue) / prevVolValue) * 100 : 0;
-                                            var volChangeFromStart = startVolValue ? ((currentValue - startVolValue) / startVolValue) * 100 : 0;
-
                                             result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
                                                 + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
                                                 + '<span style="font-weight: bold;">' + value + '</span></div>';
-                                            result += '<div style="display: flex; gap: 12px; margin-left: 4px;">'
-                                                + formatChange(volChangeFromPrev, 'Prev')
-                                                + formatChange(volChangeFromStart, 'Start')
-                                                + '</div>';
+                                        }} else if (item.seriesName === 'Liquidity') {{
+                                            var liq = item.data[1] || item.data.value[1];
+                                            if (liq >= 1000000) value = '$' + (liq/1000000).toFixed(2) + 'M';
+                                            else if (liq >= 1000) value = '$' + (liq/1000).toFixed(1) + 'K';
+                                            else value = '$' + liq.toFixed(0);
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else if (item.seriesName === 'TCR') {{
+                                            var tcr = item.data[1] || item.data.value[1];
+                                            value = tcr.toFixed(1) + '%';
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else if (item.seriesName === 'Supply') {{
+                                            var supply = item.data[1] || item.data.value[1];
+                                            if (supply >= 1000000) value = (supply/1000000).toFixed(2) + 'M';
+                                            else if (supply >= 1000) value = (supply/1000).toFixed(1) + 'K';
+                                            else value = supply.toFixed(0);
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else if (item.seriesName === 'Holders') {{
+                                            var holders = item.data[1] || item.data.value[1];
+                                            value = holders.toFixed(0);
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else if (item.seriesName === 'Lend APR' || item.seriesName === 'Borrow APR') {{
+                                            var apr = item.data[1] || item.data.value[1];
+                                            value = apr.toFixed(2) + '%';
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else if (item.seriesName === 'Transfers') {{
+                                            var transfers = item.data[1] || item.data.value[1];
+                                            value = transfers.toFixed(0);
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
+                                        }} else {{
+                                            // Generic fallback
+                                            var val = item.data[1] || item.data.value[1];
+                                            value = val.toLocaleString();
+                                            result += '<div style="display: flex; justify-content: space-between; gap: 16px;">'
+                                                + '<span style="color: ' + item.color + ';">' + item.seriesName + '</span>'
+                                                + '<span style="font-weight: bold;">' + value + '</span></div>';
                                         }}
                                     }});
                                     return result;
@@ -581,6 +769,7 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                 }}
                             }},
                             yAxis: [
+                                // 0: Price
                                 {{
                                     type: 'value',
                                     name: 'Price',
@@ -593,13 +782,112 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                     }},
                                     splitLine: {{ lineStyle: {{ color: 'rgba(255,255,255,0.05)' }} }}
                                 }},
+                                // 1: Volume
                                 {{
                                     type: 'value',
                                     name: 'Volume',
                                     position: 'right',
                                     scale: true,
-                                    axisLine: {{ lineStyle: {{ color: '#8b5cf6' }} }},
-                                    axisLabel: {{ color: '#8b5cf6' }},
+                                    axisLine: {{ lineStyle: {{ color: '#8b5cf6' }}, show: false }},
+                                    axisLabel: {{ show: false }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 2: Liquidity (USD)
+                                {{
+                                    type: 'value',
+                                    name: 'Liquidity',
+                                    position: 'right',
+                                    offset: 0,
+                                    scale: true,
+                                    show: {show_liquidity},
+                                    axisLine: {{ lineStyle: {{ color: '#06b6d4' }} }},
+                                    axisLabel: {{
+                                        color: '#06b6d4',
+                                        formatter: function(v) {{
+                                            if (v >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+                                            if (v >= 1000) return '$' + (v/1000).toFixed(0) + 'K';
+                                            return '$' + v.toFixed(0);
+                                        }}
+                                    }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 3: TCR (%)
+                                {{
+                                    type: 'value',
+                                    name: 'TCR',
+                                    position: 'right',
+                                    offset: 60,
+                                    scale: true,
+                                    show: {show_tcr},
+                                    axisLine: {{ lineStyle: {{ color: '#22c55e' }} }},
+                                    axisLabel: {{
+                                        color: '#22c55e',
+                                        formatter: function(v) {{ return v.toFixed(0) + '%'; }}
+                                    }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 4: Supply
+                                {{
+                                    type: 'value',
+                                    name: 'Supply',
+                                    position: 'right',
+                                    offset: 120,
+                                    scale: true,
+                                    show: {show_supply},
+                                    axisLine: {{ lineStyle: {{ color: '#f59e0b' }} }},
+                                    axisLabel: {{
+                                        color: '#f59e0b',
+                                        formatter: function(v) {{
+                                            if (v >= 1000000) return (v/1000000).toFixed(1) + 'M';
+                                            if (v >= 1000) return (v/1000).toFixed(0) + 'K';
+                                            return v.toFixed(0);
+                                        }}
+                                    }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 5: Holders
+                                {{
+                                    type: 'value',
+                                    name: 'Holders',
+                                    position: 'right',
+                                    offset: 180,
+                                    scale: true,
+                                    show: {show_holders},
+                                    axisLine: {{ lineStyle: {{ color: '#ec4899' }} }},
+                                    axisLabel: {{
+                                        color: '#ec4899',
+                                        formatter: function(v) {{ return v.toFixed(0); }}
+                                    }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 6: APR (%) - shared by Lend & Borrow
+                                {{
+                                    type: 'value',
+                                    name: 'APR',
+                                    position: 'right',
+                                    offset: 240,
+                                    scale: true,
+                                    show: {show_lend_apr} || {show_borrow_apr},
+                                    axisLine: {{ lineStyle: {{ color: '#10b981' }} }},
+                                    axisLabel: {{
+                                        color: '#10b981',
+                                        formatter: function(v) {{ return v.toFixed(1) + '%'; }}
+                                    }},
+                                    splitLine: {{ show: false }}
+                                }},
+                                // 7: Transfers (count)
+                                {{
+                                    type: 'value',
+                                    name: 'Transfers',
+                                    position: 'right',
+                                    offset: 300,
+                                    scale: true,
+                                    show: {show_transfers},
+                                    axisLine: {{ lineStyle: {{ color: '#6366f1' }} }},
+                                    axisLabel: {{
+                                        color: '#6366f1',
+                                        formatter: function(v) {{ return v.toFixed(0); }}
+                                    }},
                                     splitLine: {{ show: false }}
                                 }}
                             ],
@@ -712,9 +1000,23 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                 "#,
                     show_price = show_price,
                     show_volume = show_volume,
+                    show_liquidity = show_liquidity,
+                    show_tcr = show_tcr,
+                    show_supply = show_supply,
+                    show_holders = show_holders,
+                    show_lend_apr = show_lend_apr,
+                    show_borrow_apr = show_borrow_apr,
+                    show_transfers = show_transfers,
                     series_type = series_type,
                     price_data = price_data_json,
                     volume_data = volume_data_json,
+                    liquidity_data = liquidity_data_json,
+                    tcr_data = tcr_data_json,
+                    supply_data = supply_data_json,
+                    holders_data = holders_data_json,
+                    lend_apr_data = lend_apr_data_json,
+                    borrow_apr_data = borrow_apr_data_json,
+                    transfers_data = transfers_data_json,
                     candlestick_style = candlestick_style,
                     area_style = area_style,
                 );

@@ -385,17 +385,20 @@ impl SubgraphClient {
             }
         }
 
+        // Filter out orders with invalid prices, then sort
         // Lend orders (bids) sorted by price descending (best bid first)
+        lend_orders.retain(|o| o.input_unit_price.parse::<i64>().is_ok());
         lend_orders.sort_by(|a, b| {
-            let price_a = a.input_unit_price.parse::<i64>().unwrap_or(0);
-            let price_b = b.input_unit_price.parse::<i64>().unwrap_or(0);
+            let price_a = a.input_unit_price.parse::<i64>().expect("already validated");
+            let price_b = b.input_unit_price.parse::<i64>().expect("already validated");
             price_b.cmp(&price_a)
         });
 
         // Borrow orders (asks) sorted by price ascending (best ask first)
+        borrow_orders.retain(|o| o.input_unit_price.parse::<i64>().is_ok());
         borrow_orders.sort_by(|a, b| {
-            let price_a = a.input_unit_price.parse::<i64>().unwrap_or(0);
-            let price_b = b.input_unit_price.parse::<i64>().unwrap_or(0);
+            let price_a = a.input_unit_price.parse::<i64>().expect("already validated");
+            let price_b = b.input_unit_price.parse::<i64>().expect("already validated");
             price_a.cmp(&price_b)
         });
 
@@ -425,24 +428,38 @@ impl Default for SubgraphClient {
 
 /// Convert unit price (basis points) to APR
 /// This function is SSR-only because it requires current system time
-/// Returns 0.0 for invalid/edge cases instead of erroring
+/// Returns an error for invalid inputs instead of masking bad data
 #[cfg(feature = "ssr")]
 pub fn unit_price_to_apr(unit_price: &str, maturity_timestamp: i64) -> ApiResult<f64> {
-    let price = unit_price.parse::<f64>().unwrap_or(0.0);
+    let price = unit_price.parse::<f64>().map_err(|_| {
+        ApiError::parse("unit_price", unit_price)
+    })?;
 
-    // Handle edge cases gracefully
+    // Handle edge cases with explicit errors
     if price <= 0.0 || price > 10000.0 {
-        return Ok(0.0); // Return 0% APR for invalid prices
+        return Err(ApiError::InvalidResponse {
+            message: format!("Unit price {} out of valid range (0, 10000]", price),
+        });
     }
 
     let bond_price = price / 10000.0;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
+        .map_err(|e| ApiError::InvalidResponse {
+            message: format!("System time error: {}", e),
+        })?
+        .as_secs() as i64;
 
-    let days_to_maturity = ((maturity_timestamp - now) / 86400).max(1);
+    let days_to_maturity = (maturity_timestamp - now) / 86400;
+    if days_to_maturity <= 0 {
+        return Err(ApiError::InvalidResponse {
+            message: format!(
+                "Maturity timestamp {} is not in the future (days_to_maturity={})",
+                maturity_timestamp, days_to_maturity
+            ),
+        });
+    }
 
     let discount = (1.0 / bond_price) - 1.0;
     Ok((discount * 365.0 / days_to_maturity as f64 * 100.0).max(0.0))

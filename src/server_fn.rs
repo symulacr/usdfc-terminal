@@ -125,21 +125,21 @@ pub async fn get_troves(limit: Option<u32>, _offset: Option<u32>) -> Result<Vec<
 
         let rpc = RpcClient::new();
 
-        // Get troves data from MultiTroveGetter
-        let troves_data = match rpc.get_multiple_sorted_troves(0, limit).await {
-            Ok(data) => data,
-            Err(_) => return Ok(vec![]), // Return empty on RPC error
-        };
+        // Get troves data from MultiTroveGetter - propagate errors, no fallbacks
+        let troves_data = rpc.get_multiple_sorted_troves(0, limit).await
+            .map_err(|e| SfnError::ServerError(format!("RPC error fetching troves: {}", e)))?;
 
         if troves_data.is_empty() {
-            return Ok(vec![]);
+            return Ok(vec![]); // Empty is valid - no troves exist
         }
 
-        // Get FIL price for ICR calculation
-        let fil_price = match rpc.get_fil_price().await {
-            Ok(price) if !price.is_zero() => price,
-            _ => return Ok(vec![]), // Return empty if no price
-        };
+        // Get FIL price for ICR calculation - propagate errors, no fallbacks
+        let fil_price = rpc.get_fil_price().await
+            .map_err(|e| SfnError::ServerError(format!("RPC error fetching FIL price: {}", e)))?;
+
+        if fil_price.is_zero() {
+            return Err(SfnError::ServerError("FIL price is zero - price feed unavailable".to_string()));
+        }
 
         // Convert to Trove type with ICR calculation
         let troves: Vec<Trove> = troves_data
@@ -217,16 +217,30 @@ pub async fn get_lending_markets() -> Result<Vec<LendingMarketData>, ServerFnErr
         let markets = subgraph.get_lending_markets().await
             .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
-        // Filter and map markets, skipping any with missing required data
+        // Filter and map markets - only include markets with real pricing data
+        // Skip markets without unit prices (no fake "0" fallbacks)
         let market_data: Vec<LendingMarketData> = markets
             .into_iter()
             .filter_map(|m| {
                 let maturity_ts = m.maturity.parse::<i64>().ok()?;
-                let lend_price = m.last_lend_unit_price.clone().unwrap_or_else(|| "0".to_string());
-                let borrow_price = m.last_borrow_unit_price.clone().unwrap_or_else(|| "0".to_string());
-                let lend_apr = unit_price_to_apr(&lend_price, maturity_ts).unwrap_or(0.0);
-                let borrow_apr = unit_price_to_apr(&borrow_price, maturity_ts).unwrap_or(0.0);
-                let volume = m.volume.clone().unwrap_or_else(|| "0".to_string());
+
+                // Get real prices - use empty string if no price (will show as N/A in UI)
+                let lend_price = m.last_lend_unit_price.clone().unwrap_or_default();
+                let borrow_price = m.last_borrow_unit_price.clone().unwrap_or_default();
+
+                // Calculate APR only if we have valid price data
+                let lend_apr = if lend_price.is_empty() {
+                    0.0 // No price means 0 APR (market has no lend orders)
+                } else {
+                    unit_price_to_apr(&lend_price, maturity_ts).unwrap_or(0.0)
+                };
+                let borrow_apr = if borrow_price.is_empty() {
+                    0.0 // No price means 0 APR (market has no borrow orders)
+                } else {
+                    unit_price_to_apr(&borrow_price, maturity_ts).unwrap_or(0.0)
+                };
+
+                let volume = m.volume.clone().unwrap_or_default();
 
                 Some(LendingMarketData {
                     maturity: m.maturity,
@@ -430,26 +444,22 @@ pub async fn get_top_holders(limit: Option<u32>) -> Result<Vec<TokenHolderInfo>,
 
         let blockscout = BlockscoutClient::new();
 
-        match blockscout.get_token_holders(&config().usdfc_token, limit).await {
-            Ok(holders) => {
-                let holder_info: Vec<TokenHolderInfo> = holders
-                    .into_iter()
-                    .map(|h| TokenHolderInfo {
-                        address: h.address,
-                        balance: h.balance,
-                    })
-                    .collect();
+        // Fetch from Blockscout API - propagate errors, no fallbacks
+        let holders = blockscout.get_token_holders(&config().usdfc_token, limit).await
+            .map_err(|e| SfnError::ServerError(format!("Blockscout API error: {}", e)))?;
 
-                // Store in cache
-                caches::TOKEN_HOLDERS.set(cache_key, holder_info.clone());
+        let holder_info: Vec<TokenHolderInfo> = holders
+            .into_iter()
+            .map(|h| TokenHolderInfo {
+                address: h.address,
+                balance: h.balance,
+            })
+            .collect();
 
-                Ok(holder_info)
-            }
-            Err(_) => {
-                // Return empty list on error instead of failing
-                Ok(vec![])
-            }
-        }
+        // Store in cache
+        caches::TOKEN_HOLDERS.set(cache_key, holder_info.clone());
+
+        Ok(holder_info)
     }
 
     #[cfg(not(feature = "ssr"))]
@@ -688,15 +698,15 @@ pub async fn get_order_book(maturity: Option<String>) -> Result<OrderBookData, S
         let book = subgraph.get_order_book(currency, maturity_ref, 100).await
             .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
-        // Convert orders to display format
-        let convert_order = |o: &crate::subgraph::Order| -> OrderData {
-            let amount = o.input_amount.parse::<f64>().unwrap_or(0.0) / 1e18;
-            let filled = o.filled_amount.parse::<f64>().unwrap_or(0.0) / 1e18;
-            let price = o.input_unit_price.parse::<f64>().unwrap_or(0.0) / 10000.0;
-            let maturity_ts = o.maturity.parse::<i64>().unwrap_or(0);
-            let apr = crate::subgraph::unit_price_to_apr(&o.input_unit_price, maturity_ts).unwrap_or(0.0);
+        // Convert orders to display format - skip orders with invalid data instead of using fake values
+        let convert_order = |o: &crate::subgraph::Order| -> Option<OrderData> {
+            let amount = o.input_amount.parse::<f64>().ok()? / 1e18;
+            let filled = o.filled_amount.parse::<f64>().ok()? / 1e18;
+            let price = o.input_unit_price.parse::<f64>().ok()? / 10000.0;
+            let maturity_ts = o.maturity.parse::<i64>().ok()?;
+            let apr = crate::subgraph::unit_price_to_apr(&o.input_unit_price, maturity_ts).ok()?;
 
-            OrderData {
+            Some(OrderData {
                 id: o.id.clone(),
                 side: if o.side == 0 { "Lend".to_string() } else { "Borrow".to_string() },
                 amount,
@@ -705,11 +715,11 @@ pub async fn get_order_book(maturity: Option<String>) -> Result<OrderBookData, S
                 apr,
                 user: o.user.clone(),
                 created_at: o.created_at.clone(),
-            }
+            })
         };
 
-        let lend_orders: Vec<OrderData> = book.lend_orders.iter().map(convert_order).collect();
-        let borrow_orders: Vec<OrderData> = book.borrow_orders.iter().map(convert_order).collect();
+        let lend_orders: Vec<OrderData> = book.lend_orders.iter().filter_map(convert_order).collect();
+        let borrow_orders: Vec<OrderData> = book.borrow_orders.iter().filter_map(convert_order).collect();
 
         // Calculate best prices and spread
         let best_lend_price = lend_orders.first().map(|o| o.price);
@@ -861,22 +871,19 @@ pub async fn get_advanced_chart_data(
             blockscout.get_transfer_counts_by_period(resolution_mins, lookback_mins)
         );
 
-        // Process price candles from OHLCV data
-        let price_candles: Vec<TVCandle> = match ohlcv_result {
-            Ok(ohlcv_list) => {
-                ohlcv_list.into_iter()
-                    .map(|o| TVCandle {
-                        time: o.timestamp,
-                        open: o.open,
-                        high: o.high,
-                        low: o.low,
-                        close: o.close,
-                        volume: o.volume,
-                    })
-                    .collect()
-            }
-            Err(_) => Vec::new()
-        };
+        // Process price candles from OHLCV data - propagate error if API fails
+        let price_candles: Vec<TVCandle> = ohlcv_result
+            .map_err(|e| SfnError::ServerError(format!("GeckoTerminal OHLCV error: {}", e)))?
+            .into_iter()
+            .map(|o| TVCandle {
+                time: o.timestamp,
+                open: o.open,
+                high: o.high,
+                low: o.low,
+                close: o.close,
+                volume: o.volume,
+            })
+            .collect();
 
         // Extract volume data from candles
         let volume_data: Vec<(i64, f64)> = price_candles
@@ -915,7 +922,11 @@ pub async fn get_advanced_chart_data(
                     let mut best_borrow: Option<f64> = None;
                     for market in market_list {
                         if market.is_active {
-                            let maturity_ts = market.maturity.parse::<i64>().unwrap_or(0);
+                            // Skip markets with invalid maturity instead of using fake 0
+                            let maturity_ts = match market.maturity.parse::<i64>() {
+                                Ok(ts) => ts,
+                                Err(_) => continue,
+                            };
                             if let Some(ref lend_price) = market.last_lend_unit_price {
                                 if let Ok(apr) = crate::subgraph::unit_price_to_apr(lend_price, maturity_ts) {
                                     best_lend = Some(best_lend.map_or(apr, |v| v.max(apr)));
@@ -936,29 +947,16 @@ pub async fn get_advanced_chart_data(
         };
 
         // === BUILD TIME SERIES FROM HISTORICAL SNAPSHOTS ===
+        // Only use real historical data from the snapshot collector - NO fallbacks
         let snapshots = MetricSnapshot::get_history(lookback_mins, resolution_mins);
 
-        // If no snapshots yet, use current values as single point (only if available)
-        let (tcr_data, supply_data, liquidity_data, holders_data, lend_apr_data, borrow_apr_data) =
-            if snapshots.is_empty() {
-                (
-                    current_tcr.map(|v| vec![(now, v)]).unwrap_or_default(),
-                    current_supply.map(|v| vec![(now, v)]).unwrap_or_default(),
-                    current_liquidity.map(|v| vec![(now, v)]).unwrap_or_default(),
-                    current_holders.map(|v| vec![(now, v)]).unwrap_or_default(),
-                    current_lend_apr.map(|v| vec![(now, v)]).unwrap_or_default(),
-                    current_borrow_apr.map(|v| vec![(now, v)]).unwrap_or_default(),
-                )
-            } else {
-                (
-                    MetricSnapshot::tcr_series(&snapshots),
-                    MetricSnapshot::supply_series(&snapshots),
-                    MetricSnapshot::liquidity_series(&snapshots),
-                    MetricSnapshot::holders_series(&snapshots),
-                    MetricSnapshot::lend_apr_series(&snapshots),
-                    MetricSnapshot::borrow_apr_series(&snapshots),
-                )
-            };
+        // Extract series from snapshots - empty if no real data exists
+        let tcr_data = MetricSnapshot::tcr_series(&snapshots);
+        let supply_data = MetricSnapshot::supply_series(&snapshots);
+        let liquidity_data = MetricSnapshot::liquidity_series(&snapshots);
+        let holders_data = MetricSnapshot::holders_series(&snapshots);
+        let lend_apr_data = MetricSnapshot::lend_apr_series(&snapshots);
+        let borrow_apr_data = MetricSnapshot::borrow_apr_series(&snapshots);
 
         // Transfer counts from Blockscout aggregation (real historical data)
         let transfers_data: Vec<(i64, u64)> = transfers_by_period.unwrap_or_default();

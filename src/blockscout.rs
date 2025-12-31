@@ -464,47 +464,57 @@ impl BlockscoutClient {
         );
 
         // Get USDFC balance from REST API (more reliable for token balances)
+        // Propagate errors instead of silently returning defaults
+        let balances = balances_result?;
         let usdfc_token = config().usdfc_token.to_lowercase();
-        let usdfc_balance = balances_result
-            .unwrap_or_default()
+        let usdfc_balance = balances
             .iter()
             .find(|b| b.token.address.to_lowercase() == usdfc_token)
             .map(|b| {
-                let value = b.value.parse::<u128>().unwrap_or(0);
+                let value = b.value.parse::<u128>()
+                    .map_err(|e| ApiError::parse("usdfc_balance", format!("{}", e)))?;
                 let decimals = 18u32;
-                (value as f64) / 10f64.powi(decimals as i32)
+                Ok((value as f64) / 10f64.powi(decimals as i32))
             })
-            .unwrap_or(0.0);
+            .transpose()?
+            .ok_or_else(|| ApiError::NotFound {
+                resource: "usdfc_balance",
+                id: address.to_string()
+            })?;
 
         // Extract data from GraphQL response (provides accurate counts)
         let (transfer_count, is_contract, first_seen) = match gql_addr_result {
             Ok(gql_addr) => {
                 // tokenTransfersCount gives accurate total, not just page size
-                let tx_count = gql_addr.token_transfers_count.unwrap_or(0) as u64;
+                let tx_count = gql_addr.token_transfers_count
+                    .ok_or_else(|| ApiError::InvalidResponse {
+                        message: "token_transfers_count missing from GraphQL response".to_string()
+                    })? as u64;
                 let is_contract = gql_addr.smart_contract.is_some();
 
                 // For first_seen, we need to fetch the first transfer timestamp
-                let first_seen = self.get_first_transfer_timestamp(address).await
-                    .unwrap_or_else(|_| "Unknown".to_string());
+                // Propagate errors instead of silently returning "Unknown"
+                let first_seen = self.get_first_transfer_timestamp(address).await?;
 
                 (tx_count, is_contract, first_seen)
             }
-            Err(_) => {
+            Err(gql_err) => {
                 // Fallback to REST API if GraphQL fails
                 let addr_url = format!("{}/addresses/{}", self.base_url, address);
                 let addr_response = self.client.get(&addr_url).send().await
                     .map_err(|e| ApiError::HttpError(format!("Request failed: {}", e)))?;
 
                 if !addr_response.status().is_success() {
-                    return Err(ApiError::HttpError(format!(
-                        "HTTP {}: Failed to fetch address info",
-                        addr_response.status()
-                    )));
+                    // If both GraphQL and REST fail, return the original GraphQL error
+                    return Err(gql_err);
                 }
 
                 let addr_info: AddressInfoResponse = addr_response.json().await
                     .map_err(|e| ApiError::parse("address_info", format!("{}", e)))?;
-                let is_contract = addr_info.is_contract.unwrap_or(false);
+                let is_contract = addr_info.is_contract
+                    .ok_or_else(|| ApiError::InvalidResponse {
+                        message: "is_contract field missing from address info".to_string()
+                    })?;
 
                 // REST API doesn't give accurate count, use transfer fetch
                 let transfers_url = format!(
@@ -514,15 +524,19 @@ impl BlockscoutClient {
                 let transfers_response = self.client.get(&transfers_url).send().await
                     .map_err(|e| ApiError::HttpError(format!("Request failed: {}", e)))?;
 
-                let transfer_count = if transfers_response.status().is_success() {
-                    let transfers: TransfersResponse = transfers_response.json().await
-                        .unwrap_or_default();
-                    transfers.items.len() as u64
-                } else {
-                    0
-                };
+                if !transfers_response.status().is_success() {
+                    return Err(ApiError::HttpError(format!(
+                        "HTTP {}: Failed to fetch transfers for address",
+                        transfers_response.status()
+                    )));
+                }
 
-                (transfer_count, is_contract, "Unknown".to_string())
+                let transfers: TransfersResponse = transfers_response.json().await
+                    .map_err(|e| ApiError::parse("transfers", format!("{}", e)))?;
+                let transfer_count = transfers.items.len() as u64;
+
+                // Cannot determine first_seen without successful GraphQL query
+                (transfer_count, is_contract, "Unknown (GraphQL unavailable)".to_string())
             }
         };
 
@@ -587,9 +601,17 @@ impl BlockscoutClient {
         let addr_lower = address.to_lowercase();
 
         // Find transfers involving this address and get the oldest timestamp
-        let oldest_timestamp = data.token_transfers
-            .and_then(|tt| tt.edges)
-            .unwrap_or_default()
+        // Propagate error if token_transfers or edges are missing instead of using defaults
+        let edges = data.token_transfers
+            .ok_or_else(|| ApiError::InvalidResponse {
+                message: "token_transfers missing from GraphQL response".to_string()
+            })?
+            .edges
+            .ok_or_else(|| ApiError::InvalidResponse {
+                message: "edges missing from token_transfers response".to_string()
+            })?;
+
+        let oldest_timestamp = edges
             .into_iter()
             .filter_map(|edge| {
                 let node = edge.node?;
@@ -613,8 +635,9 @@ impl BlockscoutClient {
             Some(ts) => {
                 // Format as human-readable date
                 let datetime = chrono::DateTime::from_timestamp(ts, 0)
-                    .map(|dt| dt.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| "Unknown".to_string());
+                    .ok_or_else(|| ApiError::parse("timestamp", format!("Invalid timestamp: {}", ts)))?
+                    .format("%Y-%m-%d")
+                    .to_string();
                 Ok(datetime)
             }
             None => Ok("No transfers".to_string())
@@ -883,18 +906,27 @@ impl BlockscoutClient {
             ApiError::GraphQLError("No tokenTransfers in response".to_string())
         })?;
 
-        let transfers: Vec<GqlTokenTransfer> = connection
+        // Propagate error if edges are missing instead of using defaults
+        let edges = connection
             .edges
-            .unwrap_or_default()
+            .ok_or_else(|| ApiError::InvalidResponse {
+                message: "edges missing from tokenTransfers response".to_string()
+            })?;
+
+        let transfers: ApiResult<Vec<GqlTokenTransfer>> = edges
             .into_iter()
-            .filter_map(|edge| edge.node)
+            .map(|edge| {
+                edge.node.ok_or_else(|| ApiError::InvalidResponse {
+                    message: "node missing from transfer edge".to_string()
+                })
+            })
             .collect();
 
         let next_cursor = connection
             .page_info
             .and_then(|pi| if pi.has_next_page { pi.end_cursor } else { None });
 
-        Ok((transfers, next_cursor))
+        Ok((transfers?, next_cursor))
     }
 
     /// Get address info via GraphQL
@@ -961,7 +993,9 @@ impl BlockscoutClient {
         }
 
         let data: AddressesData = self.gql_query(query).await?;
-        Ok(data.addresses.unwrap_or_default())
+        data.addresses.ok_or_else(|| ApiError::InvalidResponse {
+            message: "addresses missing from GraphQL response".to_string()
+        })
     }
 
     /// Get token transfers with timestamps via GraphQL
@@ -1017,28 +1051,50 @@ impl BlockscoutClient {
             ApiError::GraphQLError("No tokenTransfers in response".to_string())
         })?;
 
-        let transfers: Vec<TransferWithTimestamp> = connection
+        // Propagate error if edges are missing instead of using defaults
+        let edges = connection
             .edges
-            .unwrap_or_default()
+            .ok_or_else(|| ApiError::InvalidResponse {
+                message: "edges missing from tokenTransfers response".to_string()
+            })?;
+
+        let transfers: ApiResult<Vec<TransferWithTimestamp>> = edges
             .into_iter()
-            .filter_map(|edge| {
-                let node = edge.node?;
+            .map(|edge| -> ApiResult<TransferWithTimestamp> {
+                let node = edge.node.ok_or_else(|| ApiError::InvalidResponse {
+                    message: "node missing from transfer edge".to_string()
+                })?;
+
                 let timestamp = node.transaction
                     .as_ref()
                     .and_then(|tx| tx.block.as_ref())
                     .and_then(|b| b.timestamp.clone())
-                    .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
-                    .map(|dt| dt.timestamp())
-                    .unwrap_or(0);
+                    .ok_or_else(|| ApiError::InvalidResponse {
+                        message: "timestamp missing from transfer".to_string()
+                    })?;
 
-                Some(TransferWithTimestamp {
+                let parsed_timestamp = chrono::DateTime::parse_from_rfc3339(&timestamp)
+                    .map_err(|e| ApiError::parse("timestamp", format!("{}", e)))?
+                    .timestamp();
+
+                Ok(TransferWithTimestamp {
                     id: node.id,
-                    from_address: node.from_address_hash.unwrap_or_default(),
-                    to_address: node.to_address_hash.unwrap_or_default(),
-                    amount: node.amount.unwrap_or_default(),
-                    block_number: node.block_number.unwrap_or(0),
-                    transaction_hash: node.transaction_hash.unwrap_or_default(),
-                    timestamp,
+                    from_address: node.from_address_hash.ok_or_else(|| ApiError::InvalidResponse {
+                        message: "from_address_hash missing from transfer".to_string()
+                    })?,
+                    to_address: node.to_address_hash.ok_or_else(|| ApiError::InvalidResponse {
+                        message: "to_address_hash missing from transfer".to_string()
+                    })?,
+                    amount: node.amount.ok_or_else(|| ApiError::InvalidResponse {
+                        message: "amount missing from transfer".to_string()
+                    })?,
+                    block_number: node.block_number.ok_or_else(|| ApiError::InvalidResponse {
+                        message: "block_number missing from transfer".to_string()
+                    })?,
+                    transaction_hash: node.transaction_hash.ok_or_else(|| ApiError::InvalidResponse {
+                        message: "transaction_hash missing from transfer".to_string()
+                    })?,
+                    timestamp: parsed_timestamp,
                 })
             })
             .collect();
@@ -1047,7 +1103,7 @@ impl BlockscoutClient {
             .page_info
             .and_then(|pi| if pi.has_next_page { pi.end_cursor } else { None });
 
-        Ok((transfers, next_cursor))
+        Ok((transfers?, next_cursor))
     }
 
     /// Get transfer counts aggregated by time period
@@ -1071,7 +1127,9 @@ impl BlockscoutClient {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+            .map_err(|e| ApiError::InvalidResponse {
+                message: format!("System time error: {}", e)
+            })?;
 
         let cutoff = if lookback_mins == 0 {
             0 // ALL data

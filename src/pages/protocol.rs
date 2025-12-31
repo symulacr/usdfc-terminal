@@ -13,6 +13,12 @@ use crate::server_fn::{get_troves, get_top_holders, get_recent_transactions, get
 use crate::format::{format_usd, format_fil, format_usdfc, format_amount, format_timestamp, shorten_hash, format_volume, decimal_to_f64};
 use crate::types::TransactionType;
 
+/// Normalize negative zero to positive zero for display purposes
+#[inline]
+fn normalize_zero(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
+}
+
 #[component]
 pub fn Protocol() -> impl IntoView {
     let active_tab = create_rw_signal("supply".to_string());
@@ -114,15 +120,15 @@ fn SupplyDynamicsTab() -> impl IntoView {
                                 <div class="grid-4">
                                     <div>
                                         <div class="metric-label">"Top 1 Holder"</div>
-                                        <div class="metric-value purple">{format!("{:.1}%", top_1)}</div>
+                                        <div class="metric-value purple">{format!("{:.1}%", normalize_zero(top_1))}</div>
                                     </div>
                                     <div>
                                         <div class="metric-label">"Top 5 Holders"</div>
-                                        <div class="metric-value cyan">{format!("{:.1}%", top_5)}</div>
+                                        <div class="metric-value cyan">{format!("{:.1}%", normalize_zero(top_5))}</div>
                                     </div>
                                     <div>
                                         <div class="metric-label">"Top 10 Holders"</div>
-                                        <div class="metric-value green">{format!("{:.1}%", top_10_pct)}</div>
+                                        <div class="metric-value green">{format!("{:.1}%", normalize_zero(top_10_pct))}</div>
                                     </div>
                                     <div>
                                         <div class="metric-label">"Distribution"</div>
@@ -283,7 +289,7 @@ fn SupplyDynamicsTab() -> impl IntoView {
                                                                 </div>
                                                             </td>
                                                             <td style="font-family: monospace; color: var(--accent-cyan);">{balance_display}</td>
-                                                            <td style="color: var(--text-muted);">{format!("{:.2}%", share)}</td>
+                                                            <td style="color: var(--text-muted);">{format!("{:.2}%", normalize_zero(share))}</td>
                                                             <td style="min-width: 80px; flex: 1;">
                                                                 <div style="background: var(--bg-tertiary); border-radius: 4px; height: 8px; width: 100%;">
                                                                     <div style=format!("background: var(--accent-cyan); border-radius: 4px; height: 100%; width: {}%;", bar_width)></div>
@@ -433,11 +439,11 @@ fn RiskAnalysisTab() -> impl IntoView {
                                             </div>
                                             <div>
                                                 <div class="metric-label">"Average ICR"</div>
-                                                <div class="metric-value purple">{format!("{:.1}%", avg_icr)}</div>
+                                                <div class="metric-value purple">{format!("{:.1}%", normalize_zero(avg_icr))}</div>
                                             </div>
                                             <div>
                                                 <div class="metric-label">"Median ICR"</div>
-                                                <div class="metric-value purple">{format!("{:.1}%", median_icr)}</div>
+                                                <div class="metric-value purple">{format!("{:.1}%", normalize_zero(median_icr))}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -560,7 +566,7 @@ fn RiskAnalysisTab() -> impl IntoView {
                                                                 </td>
                                                                 <td style="font-family: monospace;">{collateral}</td>
                                                                 <td style="font-family: monospace;">{debt}</td>
-                                                                <td style=status_class>{format!("{:.1}%", icr)}</td>
+                                                                <td style=status_class>{format!("{:.1}%", normalize_zero(icr))}</td>
                                                                 <td class="hide-mobile"><span style=status_class>{status_text}</span></td>
                                                             </tr>
                                                         }
@@ -691,11 +697,11 @@ fn PoolActivityTab() -> impl IntoView {
                                             )
                                         >
                                             {if utilization > 10.0 {
-                                                view! { <span style="color: white; font-size: 11px; font-weight: 600;">{format!("{:.1}%", utilization)}</span> }.into_view()
+                                                view! { <span style="color: white; font-size: 11px; font-weight: 600;">{format!("{:.1}%", normalize_zero(utilization))}</span> }.into_view()
                                             } else { view! {}.into_view() }}
                                         </div>
                                         {if utilization <= 10.0 {
-                                            view! { <span style="color: var(--text-muted); font-size: 12px;">{format!("{:.1}%", utilization)}</span> }.into_view()
+                                            view! { <span style="color: var(--text-muted); font-size: 12px;">{format!("{:.1}%", normalize_zero(utilization))}</span> }.into_view()
                                         } else { view! {}.into_view() }}
                                     </div>
                                 </div>

@@ -61,8 +61,12 @@ pub fn format_usd_f64(value: f64) -> String {
 
 /// Format a large USD value in compact form
 /// Output: "$1.5M", "$2.3K", "$500"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_usd_compact(value: f64) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-$0"
+    let value = if value == 0.0 { 0.0 } else { value };
+
     if value >= 1_000_000_000.0 {
         format!("${:.1}B", value / 1_000_000_000.0)
     } else if value >= 1_000_000.0 {
@@ -80,8 +84,12 @@ pub fn format_usd_compact(value: f64) -> String {
 
 /// Format volume in compact form (no symbol)
 /// Output: "1.5M", "2.3K", "500"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_volume(value: f64) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0"
+    let value = if value == 0.0 { 0.0 } else { value };
+
     if value >= 1_000_000_000.0 {
         format!("{:.1}B", value / 1_000_000_000.0)
     } else if value >= 1_000_000.0 {
@@ -106,26 +114,38 @@ pub fn format_volume_usd(value: f64) -> String {
 
 /// Format a percentage value
 /// Output: "12.34%"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_percentage(value: f64) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0.00%"
+    let value = if value == 0.0 { 0.0 } else { value };
     format!("{:.2}%", value)
 }
 
 /// Format a percentage with sign
-/// Output: "+12.34%" or "-5.67%"
+/// Output: "+12.34%" or "-5.67%" or "0.00%" for zero
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_percentage_change(value: f64) -> String {
-    if value >= 0.0 {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0.00%"
+    let value = if value == 0.0 { 0.0 } else { value };
+
+    if value > 0.0 {
         format!("+{:.2}%", value)
-    } else {
+    } else if value < 0.0 {
         format!("{:.2}%", value)
+    } else {
+        "0.00%".to_string()
     }
 }
 
 /// Format TCR/ICR with 1 decimal
 /// Output: "156.7%"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_ratio(value: f64) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0.0%"
+    let value = if value == 0.0 { 0.0 } else { value };
     format!("{:.1}%", value)
 }
 
@@ -218,8 +238,12 @@ pub fn shorten_address(value: &str) -> String {
 
 /// Format number with thousand separators and specified decimals
 /// Output: "1,234,567.89"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_readable(value: f64, decimals: usize) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0"
+    let value = if value == 0.0 { 0.0 } else { value };
+
     let formatted = format!("{:.1$}", value, decimals);
     let parts: Vec<&str> = formatted.split('.').collect();
     let integer_part = parts[0];
@@ -249,8 +273,12 @@ pub fn format_readable(value: f64, decimals: usize) -> String {
 
 /// Format large numbers in compact form (for charts/headers)
 /// Output: "1.5B", "2.3M", "4.5K", "500"
+/// Note: Handles -0 edge case by normalizing to 0
 #[inline]
 pub fn format_compact(value: f64) -> String {
+    // Normalize -0.0 to 0.0 to avoid displaying "-0"
+    let value = if value == 0.0 { 0.0 } else { value };
+
     if value >= 1_000_000_000.0 {
         format!("{:.1}B", value / 1_000_000_000.0)
     } else if value >= 1_000_000.0 {
