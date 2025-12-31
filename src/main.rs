@@ -130,7 +130,7 @@ async fn main() {
             HeaderName::from_static("content-security-policy"),
             HeaderValue::from_static(
                 "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline' 'unsafe-eval'; \
+                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; \
                  style-src 'self' 'unsafe-inline'; \
                  img-src 'self' data: https:; \
                  font-src 'self'; \

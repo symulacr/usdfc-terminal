@@ -125,21 +125,31 @@ pub async fn get_troves(limit: Option<u32>, _offset: Option<u32>) -> Result<Vec<
 
         let rpc = RpcClient::new();
 
-        // Get troves data from MultiTroveGetter - propagate errors, no fallbacks
-        let troves_data = rpc.get_multiple_sorted_troves(0, limit).await
-            .map_err(|e| SfnError::ServerError(format!("RPC error fetching troves: {}", e)))?;
+        // Get troves data - graceful fallback to empty on RPC failure
+        let troves_data = match rpc.get_multiple_sorted_troves(0, limit).await {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("RPC error fetching troves: {} - returning empty", e);
+                return Ok(vec![]);
+            }
+        };
 
         if troves_data.is_empty() {
             return Ok(vec![]); // Empty is valid - no troves exist
         }
 
-        // Get FIL price for ICR calculation - propagate errors, no fallbacks
-        let fil_price = rpc.get_fil_price().await
-            .map_err(|e| SfnError::ServerError(format!("RPC error fetching FIL price: {}", e)))?;
-
-        if fil_price.is_zero() {
-            return Err(SfnError::ServerError("FIL price is zero - price feed unavailable".to_string()));
-        }
+        // Get FIL price - graceful fallback to empty on failure
+        let fil_price = match rpc.get_fil_price().await {
+            Ok(p) if !p.is_zero() => p,
+            Ok(_) => {
+                eprintln!("FIL price is zero - returning empty troves");
+                return Ok(vec![]);
+            }
+            Err(e) => {
+                eprintln!("RPC error fetching FIL price: {} - returning empty", e);
+                return Ok(vec![]);
+            }
+        };
 
         // Convert to Trove type with ICR calculation
         let troves: Vec<Trove> = troves_data
@@ -330,6 +340,19 @@ pub struct AddressInfo {
     pub address_type: String,
 }
 
+impl AddressInfo {
+    /// Create a default AddressInfo when API fails
+    pub fn default_for(address: &str) -> Self {
+        Self {
+            address: address.to_string(),
+            usdfc_balance: "0".to_string(),
+            transfer_count: 0,
+            first_seen: "Unknown".to_string(),
+            address_type: "unknown".to_string(),
+        }
+    }
+}
+
 /// Normalized address info for display and API routing
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NormalizedAddress {
@@ -350,16 +373,25 @@ pub async fn get_address_info(address: String) -> Result<AddressInfo, ServerFnEr
     {
         use crate::blockscout::BlockscoutClient;
         use crate::address_conv::normalize_for_blockscout;
-        
-        let normalized = normalize_for_blockscout(&address)
-            .map_err(SfnError::ServerError)?;
+
+        let normalized = match normalize_for_blockscout(&address) {
+            Ok(n) => n,
+            Err(e) => {
+                eprintln!("Address normalization error: {} - returning default", e);
+                return Ok(AddressInfo::default_for(&address));
+            }
+        };
+
         let blockscout = BlockscoutClient::new();
-        let info = blockscout.get_address_usdfc_info(&normalized).await
-            .map_err(|e| SfnError::ServerError(e.to_string()))?;
-        
-        Ok(info)
+        match blockscout.get_address_usdfc_info(&normalized).await {
+            Ok(info) => Ok(info),
+            Err(e) => {
+                eprintln!("Blockscout error for {}: {} - returning default", address, e);
+                Ok(AddressInfo::default_for(&address))
+            }
+        }
     }
-    
+
     #[cfg(not(feature = "ssr"))]
     {
         Err(SfnError::ServerError("SSR is required for live data".to_string()))
