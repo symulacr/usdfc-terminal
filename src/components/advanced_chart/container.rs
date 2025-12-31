@@ -35,10 +35,12 @@ pub fn AdvancedChart() -> impl IntoView {
 
     // Fetch chart data resource - re-fetches when resolution or lookback changes
     // Using create_local_resource to avoid hydration mismatch
+    // Advanced chart container does not expose a custom date range yet, so we
+    // pass None for start/end to use the configured lookback window.
     let chart_resource = create_local_resource(
         move || (resolution.get(), lookback.get()),
         move |(res, lb)| async move {
-            get_advanced_chart_data(res, lb).await
+            get_advanced_chart_data(res, lb, None, None).await
         }
     );
 

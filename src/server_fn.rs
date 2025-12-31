@@ -529,7 +529,7 @@ pub async fn get_stability_pool_transfers(limit: Option<u32>) -> Result<Vec<Tran
 // ============================================================================
 
 /// USDFC price and market data from DEX
-/// All prices use Option<f64> - None means data unavailable (safer than fake fallbacks)
+/// All prices use Option&lt;f64&gt; - None means data unavailable (safer than fake fallbacks)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct USDFCPriceData {
     /// Current price in USD - None if API failed (NEVER fallback to 1.0)
@@ -539,17 +539,15 @@ pub struct USDFCPriceData {
     pub liquidity_usd: Option<f64>,
 }
 
-/// USDFC/WFIL pool address on Filecoin
-const USDFC_WFIL_POOL: &str = "0x4e07447bd38e60b94176764133788be1a0736b30";
-
 /// Get USDFC price data from GeckoTerminal
 /// Cached for 30 seconds to reduce API load
 #[server(GetUSDFCPriceData, "/api")]
 pub async fn get_usdfc_price_data() -> Result<USDFCPriceData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::gecko::GeckoClient;
         use crate::cache::caches;
+        use crate::config::config;
+        use crate::gecko::GeckoClient;
 
         // Check cache first
         if let Some(cached) = caches::USDFC_PRICE.get("default") {
@@ -557,7 +555,9 @@ pub async fn get_usdfc_price_data() -> Result<USDFCPriceData, ServerFnError> {
         }
 
         let gecko = GeckoClient::new();
-        let pool_info = gecko.get_pool_info(USDFC_WFIL_POOL).await
+        let pool_info = gecko
+            .get_pool_info(&config().pool_usdfc_wfil)
+            .await
             .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
         // SAFETY: Use Option - never fallback to 1.0 for price (masks depegging)
@@ -608,6 +608,10 @@ pub struct ApiHealthStatus {
     pub rpc_ok: bool,
     pub blockscout_ok: bool,
     pub subgraph_ok: bool,
+    /// GeckoTerminal DEX API health
+    pub gecko_ok: bool,
+    /// Historical SQLite database health
+    pub database_ok: bool,
     pub timestamp: i64,
 }
 
@@ -616,22 +620,38 @@ pub struct ApiHealthStatus {
 pub async fn check_api_health() -> Result<ApiHealthStatus, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::rpc::RpcClient;
         use crate::blockscout::BlockscoutClient;
+        use crate::config::config;
+        use crate::gecko::GeckoClient;
+        use crate::historical;
+        use crate::rpc::RpcClient;
         use crate::subgraph::SubgraphClient;
 
         let rpc = RpcClient::new();
         let blockscout = BlockscoutClient::new();
         let subgraph = SubgraphClient::new();
+        let gecko = GeckoClient::new();
 
-        // Check RPC by getting block number (simple call)
+        // Check RPC by getting FIL price (simple call)
         let rpc_ok = rpc.get_fil_price().await.is_ok();
 
         // Check Blockscout by getting token info
-        let blockscout_ok = blockscout.gql_get_token_info(&crate::config::config().usdfc_token).await.is_ok();
+        let blockscout_ok = blockscout
+            .gql_get_token_info(&config().usdfc_token)
+            .await
+            .is_ok();
 
         // Check Subgraph by getting lending markets
         let subgraph_ok = subgraph.get_lending_markets().await.is_ok();
+
+        // Check GeckoTerminal by fetching primary pool info
+        let gecko_ok = gecko
+            .get_pool_info(&config().pool_usdfc_wfil)
+            .await
+            .is_ok();
+
+        // Check historical SQLite database
+        let database_ok = historical::check_db_health().is_ok();
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -642,6 +662,8 @@ pub async fn check_api_health() -> Result<ApiHealthStatus, ServerFnError> {
             rpc_ok,
             blockscout_ok,
             subgraph_ok,
+            gecko_ok,
+            database_ok,
             timestamp,
         })
     }
@@ -854,6 +876,8 @@ pub async fn get_recent_lending_trades(limit: Option<i32>) -> Result<Vec<Lending
 pub async fn get_advanced_chart_data(
     resolution: ChartResolution,
     lookback: ChartLookback,
+    start: Option<i64>,
+    end: Option<i64>,
 ) -> Result<ChartDataResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -866,7 +890,7 @@ pub async fn get_advanced_chart_data(
         use std::time::{SystemTime, UNIX_EPOCH, Instant};
         use rust_decimal::prelude::ToPrimitive;
 
-        let start = Instant::now();
+        let timer_start = Instant::now();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
@@ -881,13 +905,30 @@ pub async fn get_advanced_chart_data(
         // Get resolution parameters for GeckoTerminal
         let (timeframe, aggregate, limit) = resolution.gecko_params();
 
-        // Calculate how many data points we need based on lookback
-        let lookback_mins = lookback.minutes();
+        // Calculate effective lookback in minutes for historical sources.
+        // If a custom start is provided, ensure we cover at least that span.
+        let configured_lookback_mins = lookback.minutes();
         let resolution_mins = resolution.minutes();
-        let data_points = if lookback_mins == 0 {
-            limit // Use max for "ALL"
+
+        let effective_lookback_mins = if let Some(custom_start) = start {
+            let diff_secs = now.saturating_sub(custom_start);
+            let span_mins = ((diff_secs / 60).max(1)) as u32;
+            if configured_lookback_mins == 0 {
+                // "All" lookback: use the span implied by the custom range.
+                span_mins
+            } else {
+                configured_lookback_mins.max(span_mins)
+            }
         } else {
-            ((lookback_mins / resolution_mins) as u32).min(limit)
+            configured_lookback_mins
+        };
+
+        // Determine how many OHLCV points to request from GeckoTerminal.
+        let data_points = if effective_lookback_mins == 0 {
+            // "All" – use API maximum.
+            limit
+        } else {
+            ((effective_lookback_mins / resolution_mins).max(1) as u32).min(limit)
         };
 
         // Fetch all data in parallel
@@ -900,11 +941,11 @@ pub async fn get_advanced_chart_data(
             rpc.get_tcr(),
             rpc.get_total_supply(),
             blockscout.get_holder_count(),
-            blockscout.get_transfer_counts_by_period(resolution_mins, lookback_mins)
+            blockscout.get_transfer_counts_by_period(resolution_mins, effective_lookback_mins)
         );
 
         // Process price candles from OHLCV data - propagate error if API fails
-        let price_candles: Vec<TVCandle> = ohlcv_result
+        let mut price_candles: Vec<TVCandle> = ohlcv_result
             .map_err(|e| SfnError::ServerError(format!("GeckoTerminal OHLCV error: {}", e)))?
             .into_iter()
             .map(|o| TVCandle {
@@ -916,6 +957,12 @@ pub async fn get_advanced_chart_data(
                 volume: o.volume,
             })
             .collect();
+
+        // If a custom time range is provided, filter candles to that range.
+        if let Some(custom_start) = start {
+            let effective_end = end.unwrap_or(now);
+            price_candles.retain(|c| c.time >= custom_start && c.time <= effective_end);
+        }
 
         // Extract volume data from candles
         let volume_data: Vec<(i64, f64)> = price_candles
@@ -980,7 +1027,18 @@ pub async fn get_advanced_chart_data(
 
         // === BUILD TIME SERIES FROM HISTORICAL SNAPSHOTS ===
         // Only use real historical data from the snapshot collector - NO fallbacks
-        let snapshots = MetricSnapshot::get_history(lookback_mins, resolution_mins);
+        let raw_snapshots = MetricSnapshot::get_history(effective_lookback_mins, resolution_mins);
+
+        // If a custom range is provided, filter snapshots to that range.
+        let snapshots = if let Some(custom_start) = start {
+            let effective_end = end.unwrap_or(now);
+            raw_snapshots
+                .into_iter()
+                .filter(|s| s.timestamp >= custom_start && s.timestamp <= effective_end)
+                .collect::<Vec<_>>()
+        } else {
+            raw_snapshots
+        };
 
         // Extract series from snapshots - empty if no real data exists
         let tcr_data = MetricSnapshot::tcr_series(&snapshots);
@@ -991,9 +1049,18 @@ pub async fn get_advanced_chart_data(
         let borrow_apr_data = MetricSnapshot::borrow_apr_series(&snapshots);
 
         // Transfer counts from Blockscout aggregation (real historical data)
-        let transfers_data: Vec<(i64, u64)> = transfers_by_period.unwrap_or_default();
+        let raw_transfers: Vec<(i64, u64)> = transfers_by_period.unwrap_or_default();
+        let transfers_data: Vec<(i64, u64)> = if let Some(custom_start) = start {
+            let effective_end = end.unwrap_or(now);
+            raw_transfers
+                .into_iter()
+                .filter(|(ts, _)| *ts >= custom_start && *ts <= effective_end)
+                .collect()
+        } else {
+            raw_transfers
+        };
 
-        let fetch_time_ms = start.elapsed().as_millis() as u32;
+        let fetch_time_ms = timer_start.elapsed().as_millis() as u32;
 
         Ok(ChartDataResponse {
             resolution,

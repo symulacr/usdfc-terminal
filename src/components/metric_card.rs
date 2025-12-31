@@ -78,16 +78,27 @@ pub fn MetricCard(
 // Phase 4: Extract computation to non-generic function
 #[inline]
 fn compute_sparkline_points(data: &[f64]) -> (String, String) {
-    let max_val = data.iter().fold(0.0f64, |a, &b| f64::max(a, b));
-    let min_val = data.iter().fold(f64::MAX, |a, &b| f64::min(a, b));
-    let range = if max_val - min_val > 0.0 { max_val - min_val } else { 1.0 };
-    let step = 100.0 / (data.len() - 1) as f64;
-    
-    let points: String = data.iter().enumerate().map(|(i, v)| {
-        let x = i as f64 * step;
-        let y = 100.0 - ((v - min_val) / range * 80.0 + 10.0);
-        format!("{},{}", x, y)
-    }).collect::<Vec<_>>().join(" ");
-    
-    (points, String::new())
+    match data.len() {
+        0 => (String::new(), String::new()),
+        1 => ("0,50 100,50".to_string(), String::new()),
+        _ => {
+            let max_val = data.iter().fold(0.0f64, |a, &b| f64::max(a, b));
+            let min_val = data.iter().fold(f64::MAX, |a, &b| f64::min(a, b));
+            let range = if max_val - min_val > 0.0 { max_val - min_val } else { 1.0 };
+            let step = 100.0 / (data.len() - 1) as f64;
+
+            let points: String = data
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let x = i as f64 * step;
+                    let y = 100.0 - ((v - min_val) / range * 80.0 + 10.0);
+                    format!("{},{}", x, y)
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            (points, String::new())
+        }
+    }
 }

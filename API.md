@@ -142,7 +142,7 @@ All API responses follow a consistent JSON structure:
 
 #### GET /api/v1/health
 
-Returns API health status for all data sources (RPC, Blockscout, Subgraph).
+Returns API health status for all data sources (RPC, Blockscout, Subgraph, GeckoTerminal, History DB).
 
 **Parameters:** None
 
@@ -174,6 +174,16 @@ curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/health"
         "name": "subgraph",
         "status": "healthy",
         "latency_ms": null
+      },
+      {
+        "name": "gecko",
+        "status": "healthy",
+        "latency_ms": null
+      },
+      {
+        "name": "database",
+        "status": "healthy",
+        "latency_ms": null
       }
     ]
   },
@@ -183,13 +193,13 @@ curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/health"
 
 **Response Fields:**
 
-| Field                    | Type   | Description                                     |
-|--------------------------|--------|-------------------------------------------------|
-| `status`                 | string | Overall status: `healthy` or `degraded`         |
-| `services`               | array  | Individual service health statuses              |
-| `services[].name`        | string | Service name: `rpc`, `blockscout`, `subgraph`   |
-| `services[].status`      | string | Service status: `healthy` or `unhealthy`        |
-| `services[].latency_ms`  | number | Response latency in milliseconds (optional)     |
+| Field                    | Type   | Description                                                     |
+|--------------------------|--------|-----------------------------------------------------------------|
+| `status`                 | string | Overall status: `healthy` or `degraded`                         |
+| `services`               | array  | Individual service health statuses                              |
+| `services[].name`        | string | Service name: `rpc`, `blockscout`, `subgraph`, `gecko`, `database` |
+| `services[].status`      | string | Service status: `healthy` or `unhealthy`                        |
+| `services[].latency_ms`  | number | Response latency in milliseconds (optional)                     |
 
 **Error Responses:**
 

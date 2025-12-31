@@ -264,15 +264,12 @@ pub fn AdvancedAnalytics() -> impl IntoView {
     let is_custom_range_active = move || custom_start.get().is_some() && custom_end.get().is_some();
 
     // Fetch chart data (client-only to avoid hydration mismatch)
-    // When custom dates are set, they take priority over lookback
+    // When custom dates are set, they take priority over lookback on the server side.
+    // We pass the optional start/end timestamps directly to the server function.
     let chart_resource = create_local_resource(
         move || (resolution.get(), lookback.get(), custom_start.get(), custom_end.get()),
         move |(res, lb, start, end)| async move {
-            // If custom date range is set, use it (via lookback enum with custom handling)
-            // For now, we use the lookback but the server function could be extended
-            // to accept optional start/end timestamps
-            let _ = (start, end); // Mark as used - integration point for custom range
-            get_advanced_chart_data(res, lb).await
+            get_advanced_chart_data(res, lb, start, end).await
         }
     );
 
@@ -1513,7 +1510,8 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                     <LzSource name="Filecoin RPC" endpoint="api.node.glif.io" connected=h.rpc_ok />
                                     <LzSource name="Blockscout API" endpoint="filecoin.blockscout.com" connected=h.blockscout_ok />
                                     <LzSource name="Secured Finance" endpoint="api.goldsky.com" connected=h.subgraph_ok />
-                                    <LzSource name="GeckoTerminal" endpoint="api.geckoterminal.com" connected=true />
+                                    <LzSource name="GeckoTerminal" endpoint="api.geckoterminal.com" connected=h.gecko_ok />
+                                    <LzSource name="History DB" endpoint="metrics_history.db" connected=h.database_ok />
                                 </div>
                             }.into_view(),
                             Err(_) => view! { <div class="lz-error">"Failed to check sources"</div> }.into_view()
