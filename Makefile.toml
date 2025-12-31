@@ -1,0 +1,35 @@
+# USDFC Analytics Terminal - Build Tasks
+# Use: cargo make <task>
+#
+# NOTE: LEPTOS_OUTPUT_NAME must be set in .env to fix WASM filename mismatch
+# See: https://github.com/leptos-rs/leptos/issues/1337
+
+[config]
+default_to_workspace = false
+
+[tasks.build]
+description = "Build for development"
+command = "cargo"
+args = ["leptos", "build"]
+
+[tasks.release]
+description = "Build for production"
+command = "cargo"
+args = ["leptos", "build", "--release"]
+
+[tasks.dev]
+description = "Run development server with hot reload"
+command = "cargo"
+args = ["leptos", "watch"]
+
+[tasks.serve]
+description = "Run the production server (loads .env automatically)"
+script_runner = "bash"
+script = [
+    "set -a && source .env && set +a && ./target/release/usdfc-analytics-terminal"
+]
+
+[tasks.clean]
+description = "Clean build artifacts"
+command = "cargo"
+args = ["clean"]

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check
+        run: cargo check --features ssr
+
+      - name: Clippy
+        run: cargo clippy --features ssr -- -D warnings
+
+      - name: Audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-leptos
+        run: cargo install cargo-leptos
+
+      - name: Build
+        run: cargo leptos build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: usdfc-terminal
+          path: |
+            target/release/usdfc-analytics-terminal
+            target/site/

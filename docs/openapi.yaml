@@ -1,0 +1,496 @@
+openapi: 3.0.3
+info:
+  title: USDFC Analytics Terminal API
+  description: |
+    Unified REST API aggregating Filecoin RPC, Blockscout, Secured Finance Subgraph, 
+    and GeckoTerminal into 10 endpoints for USDFC stablecoin analytics.
+  version: 0.1.6
+  license:
+    name: MIT + Apache 2.0
+    url: https://github.com/symulacr/usdfc-terminal/blob/main/LICENSE
+  contact:
+    name: USDFC Terminal
+    url: https://github.com/symulacr/usdfc-terminal
+
+servers:
+  - url: https://api.usdfc.io/api/v1
+    description: Production
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Returns API and external service health status
+      operationId: getHealth
+      tags: [System]
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /price:
+    get:
+      summary: Current Price
+      description: Returns current USDFC and FIL prices with 24h change
+      operationId: getPrice
+      tags: [Market]
+      responses:
+        '200':
+          description: Price data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceResponse'
+
+  /metrics:
+    get:
+      summary: Protocol Metrics
+      description: Returns protocol health metrics (TCR, supply, collateral)
+      operationId: getMetrics
+      tags: [Protocol]
+      responses:
+        '200':
+          description: Protocol metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /history:
+    get:
+      summary: Historical Data
+      description: Returns historical metrics with time aggregation
+      operationId: getHistory
+      tags: [Protocol]
+      parameters:
+        - name: metrics
+          in: query
+          description: Comma-separated metrics (tcr, supply, collateral, troves_count)
+          schema:
+            type: string
+            example: tcr,supply
+        - name: resolution
+          in: query
+          description: Time bucket resolution
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 4h, 1d]
+            default: 1h
+        - name: from
+          in: query
+          description: Start timestamp (Unix seconds)
+          schema:
+            type: integer
+            example: 1735000000
+        - name: to
+          in: query
+          description: End timestamp (Unix seconds)
+          schema:
+            type: integer
+            example: 1735086400
+      responses:
+        '200':
+          description: Historical data points
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+
+  /troves:
+    get:
+      summary: List Troves
+      description: Returns paginated list of all troves sorted by ICR
+      operationId: getTroves
+      tags: [Troves]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Trove list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrovesResponse'
+
+  /troves/{address}:
+    get:
+      summary: Get Trove
+      description: Returns single trove details by address
+      operationId: getTrove
+      tags: [Troves]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Trove owner address (0x or f1 format)
+          schema:
+            type: string
+            example: '0x1234567890abcdef1234567890abcdef12345678'
+      responses:
+        '200':
+          description: Trove details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TroveResponse'
+        '404':
+          description: Trove not found
+
+  /transactions:
+    get:
+      summary: Recent Transactions
+      description: Returns recent USDFC token transfers
+      operationId: getTransactions
+      tags: [Transactions]
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResponse'
+
+  /address/{address}:
+    get:
+      summary: Address Info
+      description: Returns full address information (balances, trove, transfers)
+      operationId: getAddress
+      tags: [Address]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Address to lookup (0x or f1 format)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Address details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressResponse'
+
+  /lending:
+    get:
+      summary: Lending Markets
+      description: Returns Secured Finance lending market data
+      operationId: getLending
+      tags: [Lending]
+      responses:
+        '200':
+          description: Lending markets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LendingResponse'
+
+  /holders:
+    get:
+      summary: Top Holders
+      description: Returns top USDFC token holders
+      operationId: getHolders
+      tags: [Market]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Holder list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HoldersResponse'
+
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Number of results to return
+      schema:
+        type: integer
+        default: 50
+        maximum: 500
+    Offset:
+      name: offset
+      in: query
+      description: Pagination offset
+      schema:
+        type: integer
+        default: 0
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [healthy, degraded]
+            services:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  status:
+                    type: string
+                  latency_ms:
+                    type: integer
+
+    PriceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            usdfc_usd:
+              type: number
+              example: 0.9996
+            fil_usd:
+              type: number
+              example: 5.23
+            change_24h:
+              type: number
+              example: 0.88
+            volume_24h:
+              type: number
+              example: 125000
+            liquidity_usd:
+              type: number
+              example: 450000
+
+    MetricsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            total_supply:
+              type: number
+              example: 1250000
+            circulating_supply:
+              type: number
+              example: 950000
+            total_collateral:
+              type: number
+              example: 850000
+            active_troves:
+              type: integer
+              example: 234
+            tcr:
+              type: number
+              example: 189.5
+            stability_pool_balance:
+              type: number
+              example: 300000
+
+    HistoryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            resolution:
+              type: string
+            points:
+              type: array
+              items:
+                type: object
+                properties:
+                  timestamp:
+                    type: integer
+                  tcr:
+                    type: number
+                  supply:
+                    type: number
+
+    TrovesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            troves:
+              type: array
+              items:
+                $ref: '#/components/schemas/Trove'
+            total:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+
+    TroveResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Trove'
+
+    Trove:
+      type: object
+      properties:
+        address:
+          type: string
+        debt:
+          type: number
+        collateral:
+          type: number
+        icr:
+          type: number
+        status:
+          type: string
+          enum: [active, liquidated, closed]
+        last_updated:
+          type: integer
+
+    TransactionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            transactions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Transaction'
+            total:
+              type: integer
+
+    Transaction:
+      type: object
+      properties:
+        hash:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+        value:
+          type: number
+        timestamp:
+          type: integer
+        block_number:
+          type: integer
+
+    AddressResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            address:
+              type: string
+            usdfc_balance:
+              type: number
+            fil_balance:
+              type: number
+            trove:
+              $ref: '#/components/schemas/Trove'
+            recent_transfers:
+              type: array
+              items:
+                $ref: '#/components/schemas/Transaction'
+
+    LendingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            markets:
+              type: array
+              items:
+                type: object
+                properties:
+                  currency_pair:
+                    type: string
+                  maturity:
+                    type: integer
+                  borrow_rate:
+                    type: number
+                  lend_rate:
+                    type: number
+                  available_liquidity:
+                    type: number
+                  utilization_rate:
+                    type: number
+
+    HoldersResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            holders:
+              type: array
+              items:
+                type: object
+                properties:
+                  address:
+                    type: string
+                  balance:
+                    type: number
+                  percentage:
+                    type: number
+                  is_contract:
+                    type: boolean
+                  label:
+                    type: string
+            total_holders:
+              type: integer
+
+tags:
+  - name: System
+    description: Health and status endpoints
+  - name: Market
+    description: Price and holder data
+  - name: Protocol
+    description: Protocol metrics and history
+  - name: Troves
+    description: Trove explorer
+  - name: Transactions
+    description: Transfer history
+  - name: Address
+    description: Address lookup
+  - name: Lending
+    description: Secured Finance markets

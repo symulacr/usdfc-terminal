@@ -1,0 +1,194 @@
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+
+/target/
+/Cargo.lock
+*.rlib
+*.rmeta
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+/pkg/
+/dist/
+*.wasm
+*.js.map
+node_modules/
+build/
+
+# ============================================================================
+# ENVIRONMENT & CONFIGURATION
+# ============================================================================
+
+.env
+.env.local
+.env.*.local
+.env.production.local
+.env.test.local
+.env.override
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.iws
+*.ipr
+*.xml
+*.swp
+*~
+.*.swp
+.*.swo
+\#*\#
+.#*
+
+# ============================================================================
+# OS & TEMPORARY FILES
+# ============================================================================
+
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+
+# ============================================================================
+# LOGS & DEBUGGING
+# ============================================================================
+
+*.log
+logs/
+server.log
+*.out
+RUST_BACKTRACE
+debug/
+*.dSYM/
+
+# ============================================================================
+# DATABASE & DATA
+# ============================================================================
+
+*.db
+*.sqlite
+*.sqlite3
+metrics_history.db
+/data/
+*.sql
+*.sql.bak
+dumps/
+
+# ============================================================================
+# GENERATED FILES
+# ============================================================================
+
+.generated.rs
+src/.generated/
+.auto.
+.leptos_cache/
+.cargo/
+
+# ============================================================================
+# BACKUPS & ARCHIVES
+# ============================================================================
+
+/backup/
+/backups/
+*.bak
+*.backup
+*.bkp
+*~backup
+*.old
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ============================================================================
+# INTERNAL ANALYSIS & PLANNING (Development only - not for public repo)
+# ============================================================================
+
+# Grant analysis and strategy
+devgrants_analysis.md
+GRANT_STRATEGY.md
+
+# Internal planning docs (keep locally, don't commit)
+ADVANCED_CHART_PLAN.md
+COMPREHENSIVE_DATA_MAPPING.md
+DATA_SOURCE_MATRIX.md
+DESIGN_PLAN.md
+PRODUCTION_AUDIT.md
+REORGANIZATION_PLAN.md
+UI_UX_COMPLETE_AUDIT.md
+RELEASE_PLAN.md
+
+# Internal analysis scripts
+scripts/SCRIPT_ISSUES_REPORT.md
+comprehensive_data_report.json
+data_exploration_results.json
+insight_chart_data.json
+
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================================================
+# TESTING & COVERAGE
+# ============================================================================
+
+test-output/
+test-results/
+coverage/
+*.lcov
+.nyc_output/
+
+# ============================================================================
+# CI/CD
+# ============================================================================
+
+ci-logs/
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+pip-log.txt
+
+# ============================================================================
+# KEEP IN GIT
+# ============================================================================
+
+# These files should be committed:
+# - src/**/*.rs (source code)
+# - Cargo.toml (manifest)
+# - Cargo.lock (dependency lock - optional for binaries)
+# - .env.example (environment template)
+# - /docs/*.md (public documentation)
+# - /docs/openapi.yaml (API specification)
+# - .github/workflows/ (CI configuration)
+# - LICENSE (MIT license)
+# - README.md (public readme)
+# - INSTALL.md (installation guide)
+# - ARCHITECTURE.md (technical docs)
+# - API_REFERENCE.md (API docs)
+# - ROADMAP.md (public roadmap)
+# - VISION.md (strategic vision)
+# - CONTRIBUTING.md (contributor guide)
+# - public/ (static assets)
+# - package.json (if Node is used)
