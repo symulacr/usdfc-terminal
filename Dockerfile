@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     curl \
+    perl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN rustup target add wasm32-unknown-unknown
