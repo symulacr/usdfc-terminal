@@ -1,7 +1,7 @@
 # Build stage
-FROM rust:1.82-slim as builder
+FROM rust:nightly-slim as builder
 
-# Force cache bust: 2025-12-31-02
+# Force cache bust: 2025-12-31-03
 WORKDIR /app
 
 COPY . .
@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup toolchain install nightly
+RUN rustup default nightly
 
 RUN rustup target add wasm32-unknown-unknown
 
