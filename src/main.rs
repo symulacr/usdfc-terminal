@@ -48,15 +48,14 @@ async fn main() {
     let conf = get_configuration(Some("Cargo.toml")).await.unwrap();
     let mut leptos_options = conf.leptos_options;
 
-    // Override with environment variables
-    let host = std::env::var("HOST").expect("HOST must be set");
-    let port = std::env::var("PORT")
-        .expect("PORT must be set")
-        .parse::<u16>()
-        .expect("PORT must be a valid u16");
-    let addr = format!("{}:{}", host, port).parse().unwrap_or_else(|_| {
-        tracing::warn!("Invalid address format, using default 0.0.0.0:3000");
-        "0.0.0.0:3000".parse().expect("default address should always parse")
+    // Derive bind address from unified Config (env-backed on server, defaults on client)
+    let cfg = usdfc_analytics_terminal::config::config();
+    let addr_str = format!("{}:{}", cfg.host, cfg.port);
+    let addr = addr_str.parse().unwrap_or_else(|_| {
+        tracing::warn!("Invalid address '{}', falling back to 0.0.0.0:3000", addr_str);
+        "0.0.0.0:3000"
+            .parse()
+            .expect("default address should always parse")
     });
     leptos_options.site_addr = addr;
 

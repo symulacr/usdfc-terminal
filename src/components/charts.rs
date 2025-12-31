@@ -3,20 +3,34 @@ use leptos::*;
 /// Compute chart points from data - extracted for reuse
 #[inline]
 fn compute_chart_points(data: &[(String, f64)]) -> (String, String, f64, f64) {
+    if data.is_empty() {
+        return (String::new(), String::new(), 0.0, 0.0);
+    }
+
     let max_value = data.iter().map(|(_, v)| *v).fold(0.0f64, f64::max);
     let min_value = data.iter().map(|(_, v)| *v).fold(f64::MAX, f64::min);
     let range = if max_value - min_value > 0.0 { max_value - min_value } else { 1.0 };
-    
-    let width = 100.0 / data.len() as f64;
-    let points: Vec<String> = data.iter().enumerate().map(|(i, (_, v))| {
-        let x = i as f64 * width + width / 2.0;
-        let y = 100.0 - ((v - min_value) / range * 80.0 + 10.0);
-        format!("{},{}", x, y)
-    }).collect();
-    
+
+    // For a single point, render it in the middle of the chart.
+    let width = if data.len() > 1 {
+        100.0 / data.len() as f64
+    } else {
+        100.0
+    };
+
+    let points: Vec<String> = data
+        .iter()
+        .enumerate()
+        .map(|(i, (_, v))| {
+            let x = i as f64 * width + width / 2.0;
+            let y = 100.0 - ((v - min_value) / range * 80.0 + 10.0);
+            format!("{},{}", x, y)
+        })
+        .collect();
+
     let line_points = points.join(" ");
     let area_points = format!("0,100 {} 100,100", points.join(" "));
-    
+
     (line_points, area_points, min_value, max_value)
 }
 
@@ -26,9 +40,18 @@ pub fn AreaChart(
     #[prop(default = "#00d4ff")] color: &'static str,
     #[prop(default = 200)] height: i32,
 ) -> impl IntoView {
+    if data.is_empty() {
+        return view! {
+            <div class="chart-container" style=format!("height: {}px; display: flex; align-items: center; justify-content: center;", height)>
+                <span style="color: var(--text-muted);">"No data available"</span>
+            </div>
+        }
+        .into_view();
+    }
+
     let (line_points, area_points, _, _) = compute_chart_points(&data);
     let gradient_id = format!("gradient-{}", color.replace("#", ""));
-    
+
     view! {
         <div class="chart-container" style=format!("height: {}px", height)>
             <svg class="chart-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -38,14 +61,14 @@ pub fn AreaChart(
                         <stop offset="100%" stop-color={color} stop-opacity="0"/>
                     </linearGradient>
                 </defs>
-                <polygon 
-                    points={area_points} 
+                <polygon
+                    points={area_points}
                     fill={format!("url(#{})", gradient_id)}
                 />
-                <polyline 
-                    points={line_points} 
-                    fill="none" 
-                    stroke={color} 
+                <polyline
+                    points={line_points}
+                    fill="none"
+                    stroke={color}
                     stroke-width="0.5"
                 />
             </svg>
@@ -124,9 +147,33 @@ pub fn DonutChart(
     let radius = 40.0;
     let stroke_width = 12.0;
     let circumference = 2.0 * std::f64::consts::PI * radius;
-    
+
+    // Avoid division by zero and show a friendly placeholder when there is no data.
+    if total <= 0.0 {
+        return view! {
+            <div class="donut-container empty">
+                <svg width={size} height={size} viewBox="0 0 100 100">
+                    <circle
+                        cx="50"
+                        cy="50"
+                        r={radius}
+                        fill="none"
+                        stroke="var(--border-color)"
+                        stroke-width={stroke_width}
+                        stroke-dasharray={circumference.to_string()}
+                        stroke-dashoffset="0"
+                    />
+                    <text x="50" y="50" text-anchor="middle" dy="0.3em" fill="var(--text-muted)" font-size="12" font-weight="500">
+                        "No data"
+                    </text>
+                </svg>
+            </div>
+        }
+        .into_view();
+    }
+
     let segments = compute_donut_segments(&data, total, circumference);
-    
+
     view! {
         <div class="donut-container">
             <svg width={size} height={size} viewBox="0 0 100 100">
@@ -167,14 +214,20 @@ pub fn DonutChart(
 
 #[inline]
 fn compute_donut_segments(data: &[(String, f64, &str)], total: f64, circumference: f64) -> Vec<(f64, f64, String)> {
+    if total <= 0.0 {
+        return Vec::new();
+    }
+
     let mut current_offset = 0.0;
-    data.iter().map(|(_, value, color)| {
-        let pct = value / total;
-        let dash = pct * circumference;
-        let offset = current_offset;
-        current_offset += dash;
-        (dash, offset, color.to_string())
-    }).collect()
+    data.iter()
+        .map(|(_, value, color)| {
+            let pct = value / total;
+            let dash = pct * circumference;
+            let offset = current_offset;
+            current_offset += dash;
+            (dash, offset, color.to_string())
+        })
+        .collect()
 }
 
 #[component]
@@ -185,13 +238,13 @@ pub fn SparklineChart(
     #[prop(default = 24)] height: i32,
 ) -> impl IntoView {
     let points = compute_sparkline_svg_points(&data);
-    
+
     view! {
         <svg width={width} height={height} viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polyline 
-                points={points} 
-                fill="none" 
-                stroke={color} 
+            <polyline
+                points={points}
+                fill="none"
+                stroke={color}
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -202,14 +255,28 @@ pub fn SparklineChart(
 
 #[inline]
 fn compute_sparkline_svg_points(data: &[f64]) -> String {
-    let max_value = data.iter().fold(0.0f64, |a, &b| f64::max(a, b));
-    let min_value = data.iter().fold(f64::MAX, |a, &b| f64::min(a, b));
-    let range = if max_value - min_value > 0.0 { max_value - min_value } else { 1.0 };
-    
-    let step = 100.0 / (data.len() - 1) as f64;
-    data.iter().enumerate().map(|(i, v)| {
-        let x = i as f64 * step;
-        let y = 100.0 - ((v - min_value) / range * 80.0 + 10.0);
-        format!("{},{}", x, y)
-    }).collect::<Vec<_>>().join(" ")
+    match data.len() {
+        0 => String::new(),
+        1 => "0,50 100,50".to_string(),
+        _ => {
+            let max_value = data.iter().fold(0.0f64, |a, &b| f64::max(a, b));
+            let min_value = data.iter().fold(f64::MAX, |a, &b| f64::min(a, b));
+            let range = if max_value - min_value > 0.0 {
+                max_value - min_value
+            } else {
+                1.0
+            };
+
+            let step = 100.0 / (data.len() - 1) as f64;
+            data.iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let x = i as f64 * step;
+                    let y = 100.0 - ((v - min_value) / range * 80.0 + 10.0);
+                    format!("{},{}", x, y)
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+    }
 }

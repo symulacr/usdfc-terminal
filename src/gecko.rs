@@ -6,6 +6,7 @@
 //! - DEX pool information
 //! - Recent trades
 
+use crate::config::config;
 use crate::error::{ApiError, ApiResult};
 use governor::{Quota, RateLimiter};
 use governor::clock::DefaultClock;
@@ -16,9 +17,6 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
-
-const BASE_URL: &str = "https://api.geckoterminal.com/api/v2";
-const NETWORK: &str = "filecoin";
 
 /// Maximum retry attempts for rate-limited requests
 const MAX_RETRY_ATTEMPTS: u32 = 3;
@@ -39,12 +37,17 @@ pub struct GeckoClient {
 impl GeckoClient {
     /// Create a new GeckoTerminal client
     pub fn new() -> Self {
+        // Use configured GeckoTerminal base URL, trimming any trailing slash for consistency.
+        // Expected format (see .env.example):
+        // GECKOTERMINAL_URL=https://api.geckoterminal.com/api/v2/networks/filecoin
+        let base = config().geckoterminal_url.trim_end_matches('/').to_string();
+
         Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(10))
                 .build()
                 .expect("failed to build gecko HTTP client"),
-            base_url: BASE_URL.to_string(),
+            base_url: base,
         }
     }
 
@@ -89,10 +92,7 @@ impl GeckoClient {
 
     /// Get token information (price, supply, market cap)
     pub async fn get_token_info(&self, token_address: &str) -> ApiResult<TokenInfo> {
-        let url = format!(
-            "{}/networks/{}/tokens/{}",
-            self.base_url, NETWORK, token_address
-        );
+        let url = format!("{}/tokens/{}", self.base_url, token_address);
 
         let response = self.rate_limited_request(&url).await?;
 
@@ -126,8 +126,8 @@ impl GeckoClient {
         limit: u32,
     ) -> ApiResult<Vec<OHLCV>> {
         let url = format!(
-            "{}/networks/{}/pools/{}/ohlcv/{}?aggregate={}&limit={}",
-            self.base_url, NETWORK, pool_address, timeframe, aggregate, limit
+            "{}/pools/{}/ohlcv/{}?aggregate={}&limit={}",
+            self.base_url, pool_address, timeframe, aggregate, limit
         );
 
         let response = self.rate_limited_request(&url).await?;
@@ -165,10 +165,7 @@ impl GeckoClient {
 
     /// Get pool information (liquidity, volume, transactions)
     pub async fn get_pool_info(&self, pool_address: &str) -> ApiResult<PoolInfo> {
-        let url = format!(
-            "{}/networks/{}/pools/{}",
-            self.base_url, NETWORK, pool_address
-        );
+        let url = format!("{}/pools/{}", self.base_url, pool_address);
 
         let response = self.rate_limited_request(&url).await?;
 
@@ -193,10 +190,7 @@ impl GeckoClient {
         pool_address: &str,
         limit: u32,
     ) -> ApiResult<Vec<Trade>> {
-        let url = format!(
-            "{}/networks/{}/pools/{}/trades",
-            self.base_url, NETWORK, pool_address
-        );
+        let url = format!("{}/pools/{}/trades", self.base_url, pool_address);
 
         let response = self.rate_limited_request(&url).await?;
 
@@ -222,10 +216,7 @@ impl GeckoClient {
 
     /// Get all pools for a token
     pub async fn get_token_pools(&self, token_address: &str) -> ApiResult<Vec<PoolInfo>> {
-        let url = format!(
-            "{}/networks/{}/tokens/{}/pools",
-            self.base_url, NETWORK, token_address
-        );
+        let url = format!("{}/tokens/{}/pools", self.base_url, token_address);
 
         let response = self.rate_limited_request(&url).await?;
 

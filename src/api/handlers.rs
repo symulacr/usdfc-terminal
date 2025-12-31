@@ -50,9 +50,22 @@ pub async fn get_health() -> impl IntoResponse {
                     status: if status.subgraph_ok { "healthy" } else { "unhealthy" }.to_string(),
                     latency_ms: None,
                 },
+                ServiceStatus {
+                    name: "gecko".to_string(),
+                    status: if status.gecko_ok { "healthy" } else { "unhealthy" }.to_string(),
+                    latency_ms: None,
+                },
+                ServiceStatus {
+                    name: "database".to_string(),
+                    status: if status.database_ok { "healthy" } else { "unhealthy" }.to_string(),
+                    latency_ms: None,
+                },
             ];
 
-            let all_healthy = status.rpc_ok && status.blockscout_ok && status.subgraph_ok;
+            // Overall status mirrors the infrastructure /health endpoint semantics:
+            // only fully "healthy" when all critical services are up.
+            let all_healthy =
+                status.rpc_ok && status.blockscout_ok && status.subgraph_ok && status.gecko_ok && status.database_ok;
             let overall_status = if all_healthy { "healthy" } else { "degraded" };
 
             let response = HealthResponse {
