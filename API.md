@@ -4,7 +4,7 @@ REST API aggregating Filecoin RPC, Blockscout, Secured Finance, and GeckoTermina
 
 ## Base URL
 ```
-Production: https://[YOUR-DOMAIN]/api/v1
+Production: https://usdfc-terminal.symulacr.dev/api/v1
 Local:      http://localhost:3000/api/v1
 ```
 
