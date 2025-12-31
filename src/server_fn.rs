@@ -1220,12 +1220,10 @@ pub async fn get_wallet_analytics(
         let first_seen = first_ts.and_then(|ts| {
             chrono::DateTime::from_timestamp(ts, 0)
                 .map(|dt| dt.format("%Y-%m-%d").to_string())
-                .ok()
         });
         let last_active = last_ts.and_then(|ts| {
             chrono::DateTime::from_timestamp(ts, 0)
                 .map(|dt| dt.format("%Y-%m-%d").to_string())
-                .ok()
         });
 
         // Bucket transfers by resolution

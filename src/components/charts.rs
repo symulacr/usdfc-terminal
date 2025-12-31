@@ -79,6 +79,7 @@ pub fn AreaChart(
             </div>
         </div>
     }
+    .into_view()
 }
 
 #[component]
@@ -210,6 +211,7 @@ pub fn DonutChart(
             </div>
         </div>
     }
+    .into_view()
 }
 
 #[inline]
