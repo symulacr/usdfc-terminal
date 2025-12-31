@@ -1,6 +1,7 @@
 # Build stage
 FROM rust:1.82-slim as builder
 
+# Force cache bust: 2025-12-31-02
 WORKDIR /app
 
 COPY . .
