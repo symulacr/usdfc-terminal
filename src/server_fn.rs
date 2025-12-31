@@ -1092,3 +1092,219 @@ pub async fn get_advanced_chart_data(
         Err(SfnError::ServerError("SSR is required for live data".to_string()))
     }
 }
+
+// ============================================================================
+// Wallet Analytics (Per Address)
+// ============================================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletBucket {
+    pub timestamp: i64,
+    pub volume_in: f64,
+    pub volume_out: f64,
+    pub count_in: u64,
+    pub count_out: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletAnalyticsResponse {
+    pub address: String,
+    pub buckets: Vec<WalletBucket>,
+    pub total_in: f64,
+    pub total_out: f64,
+    pub first_seen: Option<String>,
+    pub last_active: Option<String>,
+}
+
+#[server(GetWalletAnalytics, "/api")]
+pub async fn get_wallet_analytics(
+    address: String,
+    resolution: ChartResolution,
+    lookback: ChartLookback,
+    start: Option<i64>,
+    end: Option<i64>,
+) -> Result<WalletAnalyticsResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::blockscout::BlockscoutClient;
+        use crate::config::config;
+        use crate::error::ValidationError;
+        use rust_decimal::Decimal;
+        use rust_decimal::prelude::ToPrimitive;
+        use std::collections::BTreeMap;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Basic address validation
+        ValidationError::validate_address(&address)
+            .map_err(|e| SfnError::ServerError(e.to_string()))?;
+
+        // Normalize address to EVM hex if needed
+        let wallet_evm = if address.starts_with("0x") {
+            address.to_lowercase()
+        } else if address.starts_with('f') {
+            // Try to convert f4-style Filecoin address to EVM
+            match crate::address_conv::f4_to_evm(&address) {
+                Ok(ev) => ev.to_lowercase(),
+                Err(e) => return Err(SfnError::ServerError(e.to_string())),
+            }
+        } else {
+            address.to_lowercase()
+        };
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let configured_lookback_mins = lookback.minutes();
+        let resolution_mins = resolution.minutes();
+
+        let effective_lookback_mins = if let Some(custom_start) = start {
+            let diff_secs = now.saturating_sub(custom_start);
+            let span_mins = ((diff_secs / 60).max(1)) as u32;
+            if configured_lookback_mins == 0 {
+                span_mins
+            } else {
+                configured_lookback_mins.max(span_mins)
+            }
+        } else {
+            configured_lookback_mins
+        };
+
+        let (window_start, window_end) = if let Some(custom_start) = start {
+            (custom_start, end.unwrap_or(now))
+        } else if effective_lookback_mins == 0 {
+            (0, now)
+        } else {
+            let span_secs = effective_lookback_mins as i64 * 60;
+            (now.saturating_sub(span_secs), now)
+        };
+
+        let blockscout = BlockscoutClient::new();
+        let token_address = &config().usdfc_token;
+
+        // Fetch recent transfers with timestamps for USDFC
+        let (transfers, _) = blockscout
+            .gql_get_transfers_with_timestamps(token_address, 200, None)
+            .await
+            .map_err(|e| SfnError::ServerError(e.to_string()))?;
+
+        // Filter transfers for this wallet and time window
+        let mut relevant: Vec<crate::blockscout::TransferWithTimestamp> = transfers
+            .into_iter()
+            .filter(|t| t.timestamp >= window_start && t.timestamp <= window_end)
+            .filter(|t| {
+                let from = t.from_address.to_lowercase();
+                let to = t.to_address.to_lowercase();
+                from == wallet_evm || to == wallet_evm
+            })
+            .collect();
+
+        if relevant.is_empty() {
+            return Ok(WalletAnalyticsResponse {
+                address,
+                buckets: Vec::new(),
+                total_in: 0.0,
+                total_out: 0.0,
+                first_seen: None,
+                last_active: None,
+            });
+        }
+
+        // Sort by timestamp to derive first/last activity
+        relevant.sort_by_key(|t| t.timestamp);
+
+        let first_ts = relevant.first().map(|t| t.timestamp);
+        let last_ts = relevant.last().map(|t| t.timestamp);
+
+        let first_seen = first_ts.and_then(|ts| {
+            chrono::DateTime::from_timestamp(ts, 0)
+                .map(|dt| dt.format("%Y-%m-%d").to_string())
+                .ok()
+        });
+        let last_active = last_ts.and_then(|ts| {
+            chrono::DateTime::from_timestamp(ts, 0)
+                .map(|dt| dt.format("%Y-%m-%d").to_string())
+                .ok()
+        });
+
+        // Bucket transfers by resolution
+        let bucket_secs = (resolution_mins as i64 * 60).max(60);
+
+        struct BucketAccum {
+            volume_in: Decimal,
+            volume_out: Decimal,
+            count_in: u64,
+            count_out: u64,
+        }
+
+        let mut buckets_map: BTreeMap<i64, BucketAccum> = BTreeMap::new();
+
+        let decimals = 18u32;
+        let divisor = Decimal::from_i128_with_scale(10_i128.pow(decimals), 0);
+
+        for t in relevant {
+            let is_incoming = t.to_address.to_lowercase() == wallet_evm;
+            let is_outgoing = t.from_address.to_lowercase() == wallet_evm;
+
+            if !is_incoming && !is_outgoing {
+                continue;
+            }
+
+            let raw = match t.amount.parse::<u128>() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            let value = Decimal::from_i128_with_scale(raw as i128, 0) / divisor;
+            let bucket_ts = (t.timestamp / bucket_secs) * bucket_secs;
+
+            let entry = buckets_map.entry(bucket_ts).or_insert(BucketAccum {
+                volume_in: Decimal::ZERO,
+                volume_out: Decimal::ZERO,
+                count_in: 0,
+                count_out: 0,
+            });
+
+            if is_incoming {
+                entry.volume_in += value;
+                entry.count_in += 1;
+            }
+            if is_outgoing {
+                entry.volume_out += value;
+                entry.count_out += 1;
+            }
+        }
+
+        let mut buckets = Vec::new();
+        let mut total_in = Decimal::ZERO;
+        let mut total_out = Decimal::ZERO;
+
+        for (ts, acc) in buckets_map {
+            total_in += acc.volume_in;
+            total_out += acc.volume_out;
+
+            buckets.push(WalletBucket {
+                timestamp: ts,
+                volume_in: acc.volume_in.to_f64().unwrap_or(0.0),
+                volume_out: acc.volume_out.to_f64().unwrap_or(0.0),
+                count_in: acc.count_in,
+                count_out: acc.count_out,
+            });
+        }
+
+        Ok(WalletAnalyticsResponse {
+            address,
+            buckets,
+            total_in: total_in.to_f64().unwrap_or(0.0),
+            total_out: total_out.to_f64().unwrap_or(0.0),
+            first_seen,
+            last_active,
+        })
+    }
+
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(SfnError::ServerError("SSR is required for live data".to_string()))
+    }
+}

@@ -2,7 +2,7 @@
 
 use leptos::*;
 use crate::types::{ChartResolution, ChartLookback, ChartMetric, ChartType, ChartDataResponse};
-use crate::server_fn::get_advanced_chart_data;
+use crate::server_fn::{get_advanced_chart_data, get_wallet_analytics, WalletAnalyticsResponse};
 use super::{ChartHeader, ChartCanvas, ChartLegend};
 
 /// Main Advanced Chart container component
@@ -32,6 +32,19 @@ pub fn AdvancedChart() -> impl IntoView {
 
     // Chart data signal with default
     let chart_data = create_rw_signal(ChartDataResponse::default());
+
+    // Wallet analytics resource - driven by wallet address, resolution, and lookback
+    let wallet_analytics = create_local_resource(
+        move || (wallet_address.get(), resolution.get(), lookback.get()),
+        move |(addr_opt, res, lb)| async move {
+            if let Some(addr) = addr_opt {
+                // Wrap server response in Some so we can distinguish "no wallet" from errors
+                get_wallet_analytics(addr, res, lb, None, None).await.map(Some)
+            } else {
+                Ok(None)
+            }
+        }
+    );
 
     // Fetch chart data resource - re-fetches when resolution or lookback changes
     // Using create_local_resource to avoid hydration mismatch
@@ -157,13 +170,105 @@ pub fn AdvancedChart() -> impl IntoView {
                     <div class="wallet-analytics-header">
                         <span class="wallet-label">"Wallet Analytics"</span>
                         <span class="wallet-address">
-                            {move || wallet_address.get().unwrap_or_default()}
+                            {move || wallet_address.get().map(|a| shorten_address(&a)).unwrap_or_default()}
                         </span>
                     </div>
-                    <div class="coming-soon-placeholder">
-                        <span class="coming-soon-badge">"Coming Soon v2"</span>
-                        <span class="coming-soon-text">"Wallet-specific charts and analytics"</span>
-                    </div>
+                    <Suspense
+                        fallback=move || view! {
+                            <div class="wallet-analytics-body">
+                                <div class="wallet-analytics-loading">"Loading wallet analytics..."</div>
+                            </div>
+                        }
+                    >
+                        {move || {
+                            match wallet_analytics.get() {
+                                Some(Ok(Some(data))) => {
+                                    let WalletAnalyticsResponse {
+                                        address: _,
+                                        buckets,
+                                        total_in,
+                                        total_out,
+                                        first_seen,
+                                        last_active,
+                                    } = data;
+
+                                    let bucket_count = buckets.len();
+                                    let last_bucket = buckets.last().cloned();
+
+                                    view! {
+                                        <div class="wallet-analytics-body">
+                                            <div class="wallet-analytics-stats">
+                                                <div class="wallet-stat">
+                                                    <div class="wallet-stat-label">"Total In"</div>
+                                                    <div class="wallet-stat-value">
+                                                        {format!("{:.2} USDFC", total_in)}
+                                                    </div>
+                                                </div>
+                                                <div class="wallet-stat">
+                                                    <div class="wallet-stat-label">"Total Out"</div>
+                                                    <div class="wallet-stat-value">
+                                                        {format!("{:.2} USDFC", total_out)}
+                                                    </div>
+                                                </div>
+                                                <div class="wallet-stat">
+                                                    <div class="wallet-stat-label">"First Seen"</div>
+                                                    <div class="wallet-stat-value">
+                                                        {first_seen.unwrap_or_else(|| "--".to_string())}
+                                                    </div>
+                                                </div>
+                                                <div class="wallet-stat">
+                                                    <div class="wallet-stat-label">"Last Active"</div>
+                                                    <div class="wallet-stat-value">
+                                                        {last_active.unwrap_or_else(|| "--".to_string())}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="wallet-analytics-summary">
+                                                <div class="wallet-summary-line">
+                                                    <span class="wallet-summary-label">"Buckets"</span>
+                                                    <span class="wallet-summary-value">{bucket_count.to_string()}</span>
+                                                </div>
+                                                {last_bucket.map(|b| {
+                                                    view! {
+                                                        <div class="wallet-summary-line">
+                                                            <span class="wallet-summary-label">"Latest bucket in/out"</span>
+                                                            <span class="wallet-summary-value">
+                                                                {format!("{:.2} / {:.2} USDFC", b.volume_in, b.volume_out)}
+                                                            </span>
+                                                        </div>
+                                                    }
+                                                })}
+                                            </div>
+                                        </div>
+                                    }.into_view()
+                                }
+                                Some(Ok(None)) => view! {
+                                    <div class="wallet-analytics-body">
+                                        <div class="wallet-analytics-empty">
+                                            "Enter a valid wallet address to see analytics."
+                                        </div>
+                                    </div>
+                                }.into_view(),
+                                Some(Err(e)) => view! {
+                                    <div class="wallet-analytics-body">
+                                        <div class="wallet-analytics-error">
+                                            <span>"Error loading wallet analytics: "</span>
+                                            <span>{e.to_string()}</span>
+                                            <button class="retry-btn" on:click=move |_| wallet_analytics.refetch()>
+                                                "Retry"
+                                            </button>
+                                        </div>
+                                    </div>
+                                }.into_view(),
+                                None => view! {
+                                    <div class="wallet-analytics-body">
+                                        <div class="wallet-analytics-loading">"Loading wallet analytics..."</div>
+                                    </div>
+                                }.into_view(),
+                            }
+                        }}
+                    </Suspense>
                 </div>
             </Show>
 
@@ -247,5 +352,15 @@ fn format_large_number(value: f64) -> String {
         format!("${:.2}K", value / 1_000.0)
     } else {
         format!("${:.2}", value)
+    }
+}
+
+/// Shorten long addresses for display
+fn shorten_address(addr: &str) -> String {
+    if addr.len() > 12 {
+        let end = addr.len().saturating_sub(4);
+        format!("{}...{}", &addr[..6], &addr[end..])
+    } else {
+        addr.to_string()
     }
 }
