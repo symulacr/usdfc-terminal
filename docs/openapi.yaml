@@ -2,9 +2,25 @@ openapi: 3.0.3
 info:
   title: USDFC Analytics Terminal API
   description: |
-    Unified REST API aggregating Filecoin RPC, Blockscout, Secured Finance Subgraph, 
+    Unified REST API aggregating Filecoin RPC, Blockscout, Secured Finance Subgraph,
     and GeckoTerminal into 10 endpoints for USDFC stablecoin analytics.
-  version: 0.1.6
+
+    ## Data Sources
+
+    | Source | Purpose | Cache TTL |
+    |--------|---------|-----------|
+    | Filecoin RPC (Glif) | On-chain contract data | 15-120s |
+    | Blockscout | Token transfers, holders | 300s |
+    | Secured Finance Subgraph | Lending markets | 60s |
+    | GeckoTerminal | DEX price data | 30s |
+
+    ## Design Principles
+
+    - **No Fake Fallbacks**: Price fields return `null` if unavailable
+    - **Graceful Degradation**: Individual failures don't crash API
+    - **Consistent Format**: All responses use `ApiResponse` wrapper
+
+  version: 1.0.0
   license:
     name: MIT + Apache 2.0
     url: https://github.com/symulacr/usdfc-terminal/blob/main/LICENSE
@@ -13,98 +29,227 @@ info:
     url: https://github.com/symulacr/usdfc-terminal
 
 servers:
-  - url: https://api.usdfc.io/api/v1
+  - url: https://usdfc-terminal.symulacr.dev/api/v1
     description: Production
   - url: http://localhost:3000/api/v1
     description: Local development
+
+tags:
+  - name: System
+    description: Health and status endpoints
+  - name: Market
+    description: Price and holder data from GeckoTerminal
+  - name: Protocol
+    description: Protocol metrics from Filecoin RPC
+  - name: Troves
+    description: Trove (CDP) explorer from RPC
+  - name: Transactions
+    description: Transfer history from Blockscout
+  - name: Address
+    description: Address lookup from Blockscout
+  - name: Lending
+    description: Secured Finance markets from Subgraph
 
 paths:
   /health:
     get:
       summary: Health Check
-      description: Returns API and external service health status
+      description: |
+        Returns API health status for all data sources including RPC, Blockscout,
+        Subgraph, GeckoTerminal, and SQLite database.
+
+        **Handler:** `src/api/handlers.rs:34-82`
       operationId: getHealth
       tags: [System]
       responses:
         '200':
-          description: Health status
+          description: Health status returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: '#/components/schemas/HealthApiResponse'
+              example:
+                success: true
+                data:
+                  status: healthy
+                  services:
+                    - name: rpc
+                      status: healthy
+                      latency_ms: null
+                    - name: blockscout
+                      status: healthy
+                      latency_ms: null
+                    - name: subgraph
+                      status: healthy
+                      latency_ms: null
+                    - name: gecko
+                      status: healthy
+                      latency_ms: null
+                    - name: database
+                      status: healthy
+                      latency_ms: null
+                timestamp: 1703980800
+        '500':
+          description: Health check failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /price:
     get:
       summary: Current Price
-      description: Returns current USDFC and FIL prices with 24h change
+      description: |
+        Returns current USDFC and FIL prices with 24h change from GeckoTerminal DEX aggregator.
+
+        **Handler:** `src/api/handlers.rs:90-110`
+
+        **Data Sources:** GeckoTerminal (primary), Filecoin RPC (FIL price)
+
+        **Important:** All fields may be `null` if data source is unavailable.
+        The API never returns fake fallback values to prevent masking depegging events.
       operationId: getPrice
       tags: [Market]
       responses:
         '200':
-          description: Price data
+          description: Price data returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PriceResponse'
+                $ref: '#/components/schemas/PriceApiResponse'
+              example:
+                success: true
+                data:
+                  usdfc_usd: 0.9987
+                  fil_usd: 4.52
+                  change_24h: -0.13
+                  volume_24h: 125000.50
+                  liquidity_usd: 850000.00
+                timestamp: 1703980800
+        '500':
+          description: Price data fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /metrics:
     get:
       summary: Protocol Metrics
-      description: Returns protocol health metrics (TCR, supply, collateral)
+      description: |
+        Returns protocol-wide metrics including TCR, total supply, collateral,
+        active troves, holders, and stability pool balance.
+
+        **Handler:** `src/api/handlers.rs:118-148`
+
+        **Data Sources:** Filecoin RPC (primary), GeckoTerminal (volume/liquidity), Blockscout (holders)
       operationId: getMetrics
       tags: [Protocol]
       responses:
         '200':
-          description: Protocol metrics
+          description: Protocol metrics returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MetricsResponse'
+                $ref: '#/components/schemas/MetricsApiResponse'
+              example:
+                success: true
+                data:
+                  tcr: "245.67%"
+                  total_supply: "15000000.000000000000000000"
+                  circulating_supply: "12500000.000000000000000000"
+                  total_collateral: "8500000.000000000000000000"
+                  active_troves: 342
+                  holders: 1250
+                  volume_24h: 125000.50
+                  liquidity_usd: 850000.00
+                  stability_pool_balance: "2500000.000000000000000000"
+                timestamp: 1703980800
+        '500':
+          description: Metrics fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /history:
     get:
       summary: Historical Data
-      description: Returns historical metrics with time aggregation
+      description: |
+        Returns historical volume data for charting with configurable time range and resolution.
+
+        **Handler:** `src/api/handlers.rs:156-195`
+
+        **Data Sources:** Secured Finance Subgraph (daily volumes)
       operationId: getHistory
       tags: [Protocol]
       parameters:
-        - name: metrics
+        - name: metric
           in: query
-          description: Comma-separated metrics (tcr, supply, collateral, troves_count)
+          description: Metric to retrieve (currently only `volume` supported)
           schema:
             type: string
-            example: tcr,supply
+            enum: [volume]
+            default: volume
         - name: resolution
           in: query
           description: Time bucket resolution
           schema:
             type: string
-            enum: [1m, 5m, 15m, 1h, 4h, 1d]
-            default: 1h
+            enum: ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w']
+            default: '1d'
         - name: from
           in: query
-          description: Start timestamp (Unix seconds)
+          description: Start timestamp (Unix seconds). Defaults to 30 days ago.
           schema:
             type: integer
-            example: 1735000000
+            format: int64
+            example: 1703376000
         - name: to
           in: query
-          description: End timestamp (Unix seconds)
+          description: End timestamp (Unix seconds). Defaults to now.
           schema:
             type: integer
-            example: 1735086400
+            format: int64
+            example: 1703980800
       responses:
         '200':
-          description: Historical data points
+          description: Historical data returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HistoryResponse'
+                $ref: '#/components/schemas/HistoryApiResponse'
+              example:
+                success: true
+                data:
+                  metric: volume
+                  resolution: "1d"
+                  from: 1703376000
+                  to: 1703980800
+                  data:
+                    - timestamp: 1703376000
+                      value: 45230.50
+                    - timestamp: 1703462400
+                      value: 52180.25
+                    - timestamp: 1703548800
+                      value: 38920.75
+                timestamp: 1703980800
+        '500':
+          description: Historical data fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /troves:
     get:
       summary: List Troves
-      description: Returns paginated list of all troves sorted by ICR
+      description: |
+        Returns paginated list of all active troves (CDPs) sorted by ICR.
+
+        **Handler:** `src/api/handlers.rs:203-236`
+
+        **Data Sources:** Filecoin RPC (trove data, FIL price for ICR calculation)
       operationId: getTroves
       tags: [Troves]
       parameters:
@@ -112,40 +257,108 @@ paths:
         - $ref: '#/components/parameters/Offset'
       responses:
         '200':
-          description: Trove list
+          description: Trove list returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TrovesResponse'
+                $ref: '#/components/schemas/TrovesApiResponse'
+              example:
+                success: true
+                data:
+                  troves:
+                    - address: "0x1234567890abcdef1234567890abcdef12345678"
+                      collateral: "50000.000000000000000000"
+                      debt: "25000.000000000000000000"
+                      icr: "245.67%"
+                      status: active
+                    - address: "0xabcdef1234567890abcdef1234567890abcdef12"
+                      collateral: "12500.000000000000000000"
+                      debt: "8500.000000000000000000"
+                      icr: "132.50%"
+                      status: at_risk
+                  total: 342
+                  offset: 0
+                  limit: 20
+                timestamp: 1703980800
+        '500':
+          description: Troves fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /troves/{address}:
     get:
-      summary: Get Trove
-      description: Returns single trove details by address
-      operationId: getTrove
+      summary: Get Trove by Address
+      description: |
+        Returns trove information for a specific address.
+
+        **Handler:** `src/api/handlers.rs:240-274`
+
+        **Data Sources:** Filecoin RPC
+      operationId: getTroveByAddress
       tags: [Troves]
       parameters:
         - name: address
           in: path
           required: true
-          description: Trove owner address (0x or f1 format)
+          description: Wallet address (0x or f4 format)
           schema:
             type: string
+            pattern: '^(0x[a-fA-F0-9]{40}|f4[a-z0-9]+)$'
             example: '0x1234567890abcdef1234567890abcdef12345678'
       responses:
         '200':
-          description: Trove details
+          description: Trove found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TroveResponse'
+                $ref: '#/components/schemas/TroveApiResponse'
+              example:
+                success: true
+                data:
+                  address: "0x1234567890abcdef1234567890abcdef12345678"
+                  collateral: "50000.000000000000000000"
+                  debt: "25000.000000000000000000"
+                  icr: "245.67%"
+                  status: active
+                timestamp: 1703980800
+        '400':
+          description: Invalid address format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Invalid address format"
+                timestamp: 1703980800
         '404':
-          description: Trove not found
+          description: Trove not found for address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Trove not found for address"
+                timestamp: 1703980800
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /transactions:
     get:
       summary: Recent Transactions
-      description: Returns recent USDFC token transfers
+      description: |
+        Returns recent USDFC token transactions.
+
+        **Handler:** `src/api/handlers.rs:282-318`
+
+        **Data Sources:** Blockscout (token transfers)
       operationId: getTransactions
       tags: [Transactions]
       parameters:
@@ -153,78 +366,183 @@ paths:
         - $ref: '#/components/parameters/Offset'
       responses:
         '200':
-          description: Transaction list
+          description: Transaction list returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionsResponse'
+                $ref: '#/components/schemas/TransactionsApiResponse'
+              example:
+                success: true
+                data:
+                  transactions:
+                    - hash: "0xabc123def456789abc123def456789abc123def456789abc123def456789abc1"
+                      tx_type: transfer
+                      amount: "5000.000000000000000000"
+                      from: "0x1234567890abcdef1234567890abcdef12345678"
+                      to: "0xabcdef1234567890abcdef1234567890abcdef12"
+                      timestamp: 1703980750
+                      block: 4523456
+                      status: success
+                  total: 1250
+                  offset: 0
+                  limit: 20
+                timestamp: 1703980800
+        '500':
+          description: Transaction fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /address/{address}:
     get:
       summary: Address Info
-      description: Returns full address information (balances, trove, transfers)
+      description: |
+        Returns detailed information about an address including USDFC balance and activity.
+
+        **Handler:** `src/api/handlers.rs:326-360`
+
+        **Data Sources:** Blockscout (address info, balance), Address conversion utilities
       operationId: getAddress
       tags: [Address]
       parameters:
         - name: address
           in: path
           required: true
-          description: Address to lookup (0x or f1 format)
+          description: Wallet address (0x or f4 format)
           schema:
             type: string
+            pattern: '^(0x[a-fA-F0-9]{40}|f4[a-z0-9]+)$'
+            example: '0x1234567890abcdef1234567890abcdef12345678'
       responses:
         '200':
-          description: Address details
+          description: Address info returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AddressResponse'
+                $ref: '#/components/schemas/AddressApiResponse'
+              example:
+                success: true
+                data:
+                  address: "0x1234567890abcdef1234567890abcdef12345678"
+                  usdfc_balance: "25000.500000000000000000"
+                  transfer_count: 47
+                  first_seen: "2024-01-15T10:30:00Z"
+                  address_type: eoa
+                  f4_address: "f410f2iqk4a3nzeqq7rqxrqxrqxrqxrqxrqxrqxrqxq"
+                timestamp: 1703980800
+        '400':
+          description: Invalid address format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: API failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /lending:
     get:
       summary: Lending Markets
-      description: Returns Secured Finance lending market data
+      description: |
+        Returns lending market data from Secured Finance subgraph.
+
+        **Handler:** `src/api/handlers.rs:368-393`
+
+        **Data Sources:** Secured Finance Subgraph (Goldsky)
       operationId: getLending
       tags: [Lending]
       responses:
         '200':
-          description: Lending markets
+          description: Lending markets returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LendingResponse'
+                $ref: '#/components/schemas/LendingApiResponse'
+              example:
+                success: true
+                data:
+                  markets:
+                    - maturity: "1735689600"
+                      currency: USDFC
+                      lend_apr: 5.25
+                      borrow_apr: 7.50
+                      volume: "125000.000000000000000000"
+                      is_active: true
+                    - maturity: "1738368000"
+                      currency: USDFC
+                      lend_apr: 4.80
+                      borrow_apr: 6.90
+                      volume: "89500.000000000000000000"
+                      is_active: true
+                timestamp: 1703980800
+        '500':
+          description: Subgraph query failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /holders:
     get:
       summary: Top Holders
-      description: Returns top USDFC token holders
+      description: |
+        Returns top USDFC token holders.
+
+        **Handler:** `src/api/handlers.rs:401-431`
+
+        **Data Sources:** Blockscout (token holders)
       operationId: getHolders
       tags: [Market]
       parameters:
         - name: limit
           in: query
+          description: Number of holders to return (max 50)
           schema:
             type: integer
             default: 20
-            maximum: 100
+            minimum: 1
+            maximum: 50
       responses:
         '200':
-          description: Holder list
+          description: Holder list returned successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HoldersResponse'
+                $ref: '#/components/schemas/HoldersApiResponse'
+              example:
+                success: true
+                data:
+                  holders:
+                    - address: "0x791Ad78bBc58324089D3E0A8689E7D045B9592b5"
+                      balance: "2500000.000000000000000000"
+                      share: null
+                    - address: "0x1234567890abcdef1234567890abcdef12345678"
+                      balance: "500000.000000000000000000"
+                      share: null
+                  total_holders: 1250
+                timestamp: 1703980800
+        '500':
+          description: Holder data fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   parameters:
     Limit:
       name: limit
       in: query
-      description: Number of results to return
+      description: Number of results to return (max 100)
       schema:
         type: integer
-        default: 50
-        maximum: 500
+        default: 20
+        minimum: 1
+        maximum: 100
     Offset:
       name: offset
       in: query
@@ -232,265 +550,643 @@ components:
       schema:
         type: integer
         default: 0
+        minimum: 0
 
   schemas:
-    HealthResponse:
+    # Base response wrapper
+    ErrorResponse:
       type: object
+      required:
+        - success
+        - error
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message describing the issue
+          example: "Internal server error"
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp of response
+          example: 1703980800
+
+    # Health endpoint schemas
+    HealthApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
           example: true
         data:
-          type: object
-          properties:
-            status:
-              type: string
-              enum: [healthy, degraded]
-            services:
-              type: array
-              items:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  status:
-                    type: string
-                  latency_ms:
-                    type: integer
+          $ref: '#/components/schemas/HealthResponse'
+        timestamp:
+          type: integer
+          format: int64
+
+    HealthResponse:
+      type: object
+      description: "Model: src/api/models.rs:79-85"
+      required:
+        - status
+        - services
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded]
+          description: Overall health status
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceStatus'
+
+    ServiceStatus:
+      type: object
+      description: "Model: src/api/models.rs:88-96"
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          enum: [rpc, blockscout, subgraph, gecko, database]
+          description: Service name
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Service health status
+        latency_ms:
+          type: integer
+          nullable: true
+          description: Response latency in milliseconds
+
+    # Price endpoint schemas
+    PriceApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/PriceResponse'
+        timestamp:
+          type: integer
+          format: int64
 
     PriceResponse:
       type: object
+      description: "Model: src/api/models.rs:41-53"
+      properties:
+        usdfc_usd:
+          type: number
+          format: double
+          nullable: true
+          description: USDFC price in USD (null if unavailable)
+          example: 0.9987
+        fil_usd:
+          type: number
+          format: double
+          nullable: true
+          description: FIL price in USD (null if unavailable)
+          example: 4.52
+        change_24h:
+          type: number
+          format: double
+          nullable: true
+          description: 24-hour price change percentage
+          example: -0.13
+        volume_24h:
+          type: number
+          format: double
+          nullable: true
+          description: 24-hour trading volume in USD
+          example: 125000.50
+        liquidity_usd:
+          type: number
+          format: double
+          nullable: true
+          description: Pool liquidity in USD
+          example: 850000.00
+
+    # Metrics endpoint schemas
+    MetricsApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            usdfc_usd:
-              type: number
-              example: 0.9996
-            fil_usd:
-              type: number
-              example: 5.23
-            change_24h:
-              type: number
-              example: 0.88
-            volume_24h:
-              type: number
-              example: 125000
-            liquidity_usd:
-              type: number
-              example: 450000
+          $ref: '#/components/schemas/MetricsResponse'
+        timestamp:
+          type: integer
+          format: int64
 
     MetricsResponse:
       type: object
+      description: "Model: src/api/models.rs:56-76"
+      required:
+        - tcr
+        - total_supply
+        - circulating_supply
+        - total_collateral
+        - active_troves
+        - stability_pool_balance
       properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            total_supply:
-              type: number
-              example: 1250000
-            circulating_supply:
-              type: number
-              example: 950000
-            total_collateral:
-              type: number
-              example: 850000
-            active_troves:
-              type: integer
-              example: 234
-            tcr:
-              type: number
-              example: 189.5
-            stability_pool_balance:
-              type: number
-              example: 300000
+        tcr:
+          type: string
+          description: Total Collateralization Ratio as formatted percentage
+          example: "245.67%"
+        total_supply:
+          type: string
+          description: Total USDFC supply (18 decimals)
+          example: "15000000.000000000000000000"
+        circulating_supply:
+          type: string
+          description: Circulating supply excluding stability pool
+          example: "12500000.000000000000000000"
+        total_collateral:
+          type: string
+          description: Total FIL collateral locked (18 decimals)
+          example: "8500000.000000000000000000"
+        active_troves:
+          type: integer
+          format: int64
+          description: Number of active troves (CDPs)
+          example: 342
+        holders:
+          type: integer
+          format: int64
+          nullable: true
+          description: Number of USDFC token holders
+          example: 1250
+        volume_24h:
+          type: number
+          format: double
+          nullable: true
+          description: 24-hour trading volume in USD
+          example: 125000.50
+        liquidity_usd:
+          type: number
+          format: double
+          nullable: true
+          description: DEX pool liquidity in USD
+          example: 850000.00
+        stability_pool_balance:
+          type: string
+          description: USDFC deposited in stability pool
+          example: "2500000.000000000000000000"
 
-    HistoryResponse:
+    # History endpoint schemas
+    HistoryApiResponse:
       type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            resolution:
-              type: string
-            points:
-              type: array
-              items:
-                type: object
-                properties:
-                  timestamp:
-                    type: integer
-                  tcr:
-                    type: number
-                  supply:
-                    type: number
+          $ref: '#/components/schemas/HistoricalResponse'
+        timestamp:
+          type: integer
+          format: int64
 
-    TrovesResponse:
+    HistoricalResponse:
       type: object
+      description: "Model: src/api/models.rs:211-223"
+      required:
+        - metric
+        - resolution
+        - from
+        - to
+        - data
+      properties:
+        metric:
+          type: string
+          description: Metric name
+          example: volume
+        resolution:
+          type: string
+          description: Data resolution
+          example: "1d"
+        from:
+          type: integer
+          format: int64
+          description: Start timestamp
+          example: 1703376000
+        to:
+          type: integer
+          format: int64
+          description: End timestamp
+          example: 1703980800
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoricalDataPoint'
+
+    HistoricalDataPoint:
+      type: object
+      description: "Model: src/api/models.rs:202-208"
+      required:
+        - timestamp
+        - value
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp
+          example: 1703376000
+        value:
+          type: number
+          format: double
+          description: Metric value at timestamp
+          example: 45230.50
+
+    # Troves endpoint schemas
+    TrovesApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            troves:
-              type: array
-              items:
-                $ref: '#/components/schemas/Trove'
-            total:
-              type: integer
-            limit:
-              type: integer
-            offset:
-              type: integer
+          $ref: '#/components/schemas/TrovesListResponse'
+        timestamp:
+          type: integer
+          format: int64
+
+    TroveApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/TroveResponse'
+        timestamp:
+          type: integer
+          format: int64
+
+    TrovesListResponse:
+      type: object
+      description: "Model: src/api/models.rs:114-124"
+      required:
+        - troves
+        - total
+        - offset
+        - limit
+      properties:
+        troves:
+          type: array
+          items:
+            $ref: '#/components/schemas/TroveResponse'
+        total:
+          type: integer
+          format: int64
+          description: Total count of troves
+          example: 342
+        offset:
+          type: integer
+          format: int32
+          description: Current page offset
+          example: 0
+        limit:
+          type: integer
+          format: int32
+          description: Page size limit
+          example: 20
 
     TroveResponse:
       type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/Trove'
-
-    Trove:
-      type: object
+      description: "Model: src/api/models.rs:99-111"
+      required:
+        - address
+        - collateral
+        - debt
+        - icr
+        - status
       properties:
         address:
           type: string
-        debt:
-          type: number
+          description: Owner wallet address
+          example: "0x1234567890abcdef1234567890abcdef12345678"
         collateral:
-          type: number
+          type: string
+          description: Collateral amount in FIL (18 decimals)
+          example: "50000.000000000000000000"
+        debt:
+          type: string
+          description: Debt amount in USDFC (18 decimals)
+          example: "25000.000000000000000000"
         icr:
-          type: number
+          type: string
+          description: Individual Collateralization Ratio as percentage
+          example: "245.67%"
         status:
           type: string
-          enum: [active, liquidated, closed]
-        last_updated:
-          type: integer
+          enum: [active, at_risk, critical, closed]
+          description: |
+            Trove health status based on ICR:
+            - active: ICR >= 135%
+            - at_risk: 115% <= ICR < 135%
+            - critical: ICR < 115%
+            - closed: Trove is closed
+          example: active
 
-    TransactionsResponse:
+    # Transactions endpoint schemas
+    TransactionsApiResponse:
       type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            transactions:
-              type: array
-              items:
-                $ref: '#/components/schemas/Transaction'
-            total:
-              type: integer
+          $ref: '#/components/schemas/TransactionsListResponse'
+        timestamp:
+          type: integer
+          format: int64
 
-    Transaction:
+    TransactionsListResponse:
       type: object
+      description: "Model: src/api/models.rs:148-158"
+      required:
+        - transactions
+        - total
+        - offset
+        - limit
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
+        total:
+          type: integer
+          format: int64
+          description: Total count of transactions
+          example: 1250
+        offset:
+          type: integer
+          format: int32
+          description: Current page offset
+          example: 0
+        limit:
+          type: integer
+          format: int32
+          description: Page size limit
+          example: 20
+
+    TransactionResponse:
+      type: object
+      description: "Model: src/api/models.rs:127-145"
+      required:
+        - hash
+        - tx_type
+        - amount
+        - from
+        - to
+        - timestamp
+        - block
+        - status
       properties:
         hash:
           type: string
+          description: Transaction hash
+          example: "0xabc123def456789abc123def456789abc123def456789abc123def456789abc1"
+        tx_type:
+          type: string
+          enum: [mint, burn, transfer, deposit, withdraw, liquidation, redemption]
+          description: Transaction type
+          example: transfer
+        amount:
+          type: string
+          description: Amount in USDFC (18 decimals)
+          example: "5000.000000000000000000"
         from:
           type: string
+          description: Sender address
+          example: "0x1234567890abcdef1234567890abcdef12345678"
         to:
           type: string
-        value:
-          type: number
+          description: Recipient address
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
         timestamp:
           type: integer
-        block_number:
+          format: int64
+          description: Unix timestamp
+          example: 1703980750
+        block:
           type: integer
+          format: int64
+          description: Block number
+          example: 4523456
+        status:
+          type: string
+          enum: [pending, success, failed]
+          description: Transaction status
+          example: success
 
-    AddressResponse:
+    # Address endpoint schemas
+    AddressApiResponse:
       type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            address:
-              type: string
-            usdfc_balance:
-              type: number
-            fil_balance:
-              type: number
-            trove:
-              $ref: '#/components/schemas/Trove'
-            recent_transfers:
-              type: array
-              items:
-                $ref: '#/components/schemas/Transaction'
+          $ref: '#/components/schemas/AddressInfoResponse'
+        timestamp:
+          type: integer
+          format: int64
 
-    LendingResponse:
+    AddressInfoResponse:
       type: object
+      description: "Model: src/api/models.rs:161-175"
+      required:
+        - address
+        - usdfc_balance
+        - transfer_count
+        - first_seen
+        - address_type
+      properties:
+        address:
+          type: string
+          description: Normalized address (EVM format)
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        usdfc_balance:
+          type: string
+          description: Current USDFC balance
+          example: "25000.500000000000000000"
+        transfer_count:
+          type: integer
+          format: int64
+          description: Total number of USDFC transfers
+          example: 47
+        first_seen:
+          type: string
+          description: First transaction timestamp (ISO 8601)
+          example: "2024-01-15T10:30:00Z"
+        address_type:
+          type: string
+          enum: [eoa, contract, protocol, unknown]
+          description: Address type
+          example: eoa
+        f4_address:
+          type: string
+          nullable: true
+          description: Filecoin f4 address (if applicable)
+          example: "f410f2iqk4a3nzeqq7rqxrqxrqxrqxrqxrqxrqxrqxq"
+
+    # Lending endpoint schemas
+    LendingApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            markets:
-              type: array
-              items:
-                type: object
-                properties:
-                  currency_pair:
-                    type: string
-                  maturity:
-                    type: integer
-                  borrow_rate:
-                    type: number
-                  lend_rate:
-                    type: number
-                  available_liquidity:
-                    type: number
-                  utilization_rate:
-                    type: number
+          $ref: '#/components/schemas/LendingMarketsResponse'
+        timestamp:
+          type: integer
+          format: int64
 
-    HoldersResponse:
+    LendingMarketsResponse:
       type: object
+      description: "Model: src/api/models.rs:195-199"
+      required:
+        - markets
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: '#/components/schemas/LendingMarketResponse'
+
+    LendingMarketResponse:
+      type: object
+      description: "Model: src/api/models.rs:178-192"
+      required:
+        - maturity
+        - currency
+        - lend_apr
+        - borrow_apr
+        - volume
+        - is_active
+      properties:
+        maturity:
+          type: string
+          description: Market maturity timestamp (Unix seconds)
+          example: "1735689600"
+        currency:
+          type: string
+          description: Currency symbol
+          example: USDFC
+        lend_apr:
+          type: number
+          format: double
+          description: Current lending APR percentage
+          example: 5.25
+        borrow_apr:
+          type: number
+          format: double
+          description: Current borrowing APR percentage
+          example: 7.50
+        volume:
+          type: string
+          description: Total volume (18 decimals)
+          example: "125000.000000000000000000"
+        is_active:
+          type: boolean
+          description: Whether market is currently active
+          example: true
+
+    # Holders endpoint schemas
+    HoldersApiResponse:
+      type: object
+      required:
+        - success
+        - data
+        - timestamp
       properties:
         success:
           type: boolean
+          example: true
         data:
-          type: object
-          properties:
-            holders:
-              type: array
-              items:
-                type: object
-                properties:
-                  address:
-                    type: string
-                  balance:
-                    type: number
-                  percentage:
-                    type: number
-                  is_contract:
-                    type: boolean
-                  label:
-                    type: string
-            total_holders:
-              type: integer
+          $ref: '#/components/schemas/TopHoldersResponse'
+        timestamp:
+          type: integer
+          format: int64
 
-tags:
-  - name: System
-    description: Health and status endpoints
-  - name: Market
-    description: Price and holder data
-  - name: Protocol
-    description: Protocol metrics and history
-  - name: Troves
-    description: Trove explorer
-  - name: Transactions
-    description: Transfer history
-  - name: Address
-    description: Address lookup
-  - name: Lending
-    description: Secured Finance markets
+    TopHoldersResponse:
+      type: object
+      description: "Model: src/api/models.rs:259-265"
+      required:
+        - holders
+      properties:
+        holders:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenHolderResponse'
+        total_holders:
+          type: integer
+          format: int64
+          nullable: true
+          description: Total count of all holders
+          example: 1250
+
+    TokenHolderResponse:
+      type: object
+      description: "Model: src/api/models.rs:248-256"
+      required:
+        - address
+        - balance
+      properties:
+        address:
+          type: string
+          description: Holder wallet address
+          example: "0x791Ad78bBc58324089D3E0A8689E7D045B9592b5"
+        balance:
+          type: string
+          description: USDFC balance (18 decimals)
+          example: "2500000.000000000000000000"
+        share:
+          type: number
+          format: double
+          nullable: true
+          description: Percentage of total supply
+          example: null
