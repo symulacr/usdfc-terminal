@@ -47,83 +47,45 @@ See [API.md](./API.md) for all 10 endpoints.
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Protocol](docs/screenshots/protocol.png) | ![Lending](docs/screenshots/lending.png) |
 
 ## Architecture
-```mermaid
-flowchart TB
-    subgraph Terminal["USDFC Analytics Terminal"]
-        API["REST API<br/><i>10 endpoints</i>"]
-        SF["Server Functions<br/><i>15 async fns</i>"]
-        AGG["Aggregation Layer + Cache"]
-    end
 
-    subgraph Sources["Data Sources"]
-        FIL["Filecoin RPC"]
-        BLOCK["Blockscout API"]
-        SEC["Secured Finance"]
-        GECKO["GeckoTerminal"]
-    end
-
-    API --> SF
-    SF --> AGG
-    AGG --> FIL
-    AGG --> BLOCK
-    AGG --> SEC
-    AGG --> GECKO
+```
+┌─────────────────────────────────────────────────────────┐
+│                 USDFC Analytics Terminal                │
+├─────────────────────────────────────────────────────────┤
+│  [REST API]        10 endpoints                         │
+│  [Server Fns]      15 async functions                   │
+│  [Cache]           TTL 30-300s                          │
+├──────────┬──────────┬──────────────┬───────────────────┤
+│ Filecoin │Blockscout│   Goldsky    │   GeckoTerminal   │
+│   RPC    │   API    │   Subgraph   │       API         │
+└──────────┴──────────┴──────────────┴───────────────────┘
 ```
 
 ## Data Flow
 
-```mermaid
-flowchart LR
-    subgraph External["External APIs"]
-        Blockscout["Blockscout API"]
-        Gecko["GeckoTerminal"]
-        Goldsky["Goldsky Subgraph"]
-        RPC["Filecoin RPC"]
-    end
-
-    subgraph Server["Server Layer"]
-        Cache["Cache Layer<br/>(TTL: 30-300s)"]
-        ServerFn["Server Functions<br/>(15 async fns)"]
-        SSR["SSR Rendering<br/>(<5ms)"]
-    end
-
-    subgraph Client["Client Layer"]
-        WASM["WASM Hydration"]
-        Browser["User Browser"]
-    end
-
-    Blockscout --> Cache
-    Gecko --> Cache
-    Goldsky --> Cache
-    RPC --> Cache
-
-    Cache --> ServerFn
-    ServerFn --> SSR
-    SSR --> WASM
-    WASM --> Browser
-
-    Browser -->|"API Requests"| ServerFn
+```
+External APIs          Server                    Client
+─────────────         ────────                  ────────
+ Blockscout ─┐
+ Gecko      ─┼─→ [Cache] → [Server Fns] → [SSR] → [WASM] → Browser
+ Goldsky    ─┤                  ↑                            │
+ RPC        ─┘                  └────── API Requests ────────┘
 ```
 
-## API Structure
+## API Endpoints
 
-```mermaid
-mindmap
-  root((USDFC API))
-    Health
-      /api/v1/health
-    Price
-      /api/v1/price
-    Protocol
-      /api/v1/metrics
-      /api/v1/troves
-    Market
-      /api/v1/holders
-      /api/v1/transactions
-    Lending
-      /api/v1/lending
-    Historical
-      /api/v1/history
+```
+/api/v1
+├── health          service status
+├── price           usdfc/fil prices
+├── metrics         protocol tcr, supply
+├── troves          cdp positions
+├── troves/:addr    single trove
+├── holders         top holders
+├── transactions    recent transfers
+├── address/:addr   wallet lookup
+├── lending         secured finance rates
+└── history         7-day snapshots
 ```
 
 ## Tech Stack
