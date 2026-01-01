@@ -1,0 +1,30 @@
+direction: right
+
+external: External {
+  blockscout
+  gecko
+  goldsky
+  rpc
+}
+
+server: Server {
+  cache
+  functions
+  ssr
+}
+
+client: Client {
+  wasm
+  browser
+}
+
+external -> server.cache: fetch
+server.cache -> server.functions
+server.functions -> server.ssr
+server.ssr -> client.wasm
+client.wasm -> client.browser
+client.browser -> server.functions: api requests {style.stroke-dash: 3}
+
+style: {
+  fill: transparent
+}

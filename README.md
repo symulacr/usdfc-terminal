@@ -48,28 +48,24 @@ See [API.md](./API.md) for all 10 endpoints.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                 USDFC Analytics Terminal                │
-├─────────────────────────────────────────────────────────┤
-│  [REST API]        10 endpoints                         │
-│  [Server Fns]      15 async functions                   │
-│  [Cache]           TTL 30-300s                          │
-├──────────┬──────────┬──────────────┬───────────────────┤
-│ Filecoin │Blockscout│   Goldsky    │   GeckoTerminal   │
-│   RPC    │   API    │   Subgraph   │       API         │
-└──────────┴──────────┴──────────────┴───────────────────┘
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart TB
+    API[REST API] --> SF[Server Functions]
+    SF --> Cache
+    Cache --> RPC[Filecoin RPC]
+    Cache --> Block[Blockscout]
+    Cache --> Gold[Goldsky]
+    Cache --> Gecko[GeckoTerminal]
 ```
 
 ## Data Flow
 
-```
-External APIs          Server                    Client
-─────────────         ────────                  ────────
- Blockscout ─┐
- Gecko      ─┼─→ [Cache] → [Server Fns] → [SSR] → [WASM] → Browser
- Goldsky    ─┤                  ↑                            │
- RPC        ─┘                  └────── API Requests ────────┘
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    Sources[Data Sources] --> Cache --> Server --> SSR --> WASM --> Client
+    Client -.->|requests| Server
 ```
 
 ## API Endpoints
