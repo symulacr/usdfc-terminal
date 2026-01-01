@@ -47,41 +47,83 @@ See [API.md](./API.md) for all 10 endpoints.
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Protocol](docs/screenshots/protocol.png) | ![Lending](docs/screenshots/lending.png) |
 
 ## Architecture
-
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
 flowchart TB
-    API[REST API] --> SF[Server Functions]
-    SF --> Cache
-    Cache --> RPC[Filecoin RPC]
-    Cache --> Block[Blockscout]
-    Cache --> Gold[Goldsky]
-    Cache --> Gecko[GeckoTerminal]
+    subgraph Terminal["USDFC Analytics Terminal"]
+        API["REST API<br/><i>10 endpoints</i>"]
+        SF["Server Functions<br/><i>15 async fns</i>"]
+        AGG["Aggregation Layer + Cache"]
+    end
+
+    subgraph Sources["Data Sources"]
+        FIL["Filecoin RPC"]
+        BLOCK["Blockscout API"]
+        SEC["Secured Finance"]
+        GECKO["GeckoTerminal"]
+    end
+
+    API --> SF
+    SF --> AGG
+    AGG --> FIL
+    AGG --> BLOCK
+    AGG --> SEC
+    AGG --> GECKO
 ```
 
 ## Data Flow
 
 ```mermaid
-%%{init: {'theme': 'neutral'}}%%
 flowchart LR
-    Sources[Data Sources] --> Cache --> Server --> SSR --> WASM --> Client
-    Client -.->|requests| Server
+    subgraph External["External APIs"]
+        Blockscout["Blockscout API"]
+        Gecko["GeckoTerminal"]
+        Goldsky["Goldsky Subgraph"]
+        RPC["Filecoin RPC"]
+    end
+
+    subgraph Server["Server Layer"]
+        Cache["Cache Layer<br/>(TTL: 30-300s)"]
+        ServerFn["Server Functions<br/>(15 async fns)"]
+        SSR["SSR Rendering<br/>(<5ms)"]
+    end
+
+    subgraph Client["Client Layer"]
+        WASM["WASM Hydration"]
+        Browser["User Browser"]
+    end
+
+    Blockscout --> Cache
+    Gecko --> Cache
+    Goldsky --> Cache
+    RPC --> Cache
+
+    Cache --> ServerFn
+    ServerFn --> SSR
+    SSR --> WASM
+    WASM --> Browser
+
+    Browser -->|"API Requests"| ServerFn
 ```
 
-## API Endpoints
+## API Structure
 
-```
-/api/v1
-├── health          service status
-├── price           usdfc/fil prices
-├── metrics         protocol tcr, supply
-├── troves          cdp positions
-├── troves/:addr    single trove
-├── holders         top holders
-├── transactions    recent transfers
-├── address/:addr   wallet lookup
-├── lending         secured finance rates
-└── history         7-day snapshots
+```mermaid
+mindmap
+  root((USDFC API))
+    Health
+      /api/v1/health
+    Price
+      /api/v1/price
+    Protocol
+      /api/v1/metrics
+      /api/v1/troves
+    Market
+      /api/v1/holders
+      /api/v1/transactions
+    Lending
+      /api/v1/lending
+    Historical
+      /api/v1/history
 ```
 
 ## Tech Stack
