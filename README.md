@@ -47,84 +47,78 @@ See [API.md](./API.md) for all 10 endpoints.
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Protocol](docs/screenshots/protocol.png) | ![Lending](docs/screenshots/lending.png) |
 
 ## Architecture
+
 ```mermaid
-flowchart TB
-    subgraph Terminal["USDFC Analytics Terminal"]
-        API["REST API<br/><i>10 endpoints</i>"]
-        SF["Server Functions<br/><i>15 async fns</i>"]
-        AGG["Aggregation Layer + Cache"]
+%%{init: {'theme': 'neutral'}}%%
+block-beta
+    columns 1
+
+    block:terminal["USDFC Analytics Terminal"]:1
+        api["REST API · 10 endpoints"]
+        sf["Server Functions · 15 async"]
+        cache["Cache · TTL 30-300s"]
     end
 
-    subgraph Sources["Data Sources"]
-        FIL["Filecoin RPC"]
-        BLOCK["Blockscout API"]
-        SEC["Secured Finance"]
-        GECKO["GeckoTerminal"]
+    space
+
+    block:sources:1
+        columns 4
+        rpc["Filecoin RPC"]
+        block["Blockscout"]
+        gold["Goldsky"]
+        gecko["Gecko"]
     end
 
-    API --> SF
-    SF --> AGG
-    AGG --> FIL
-    AGG --> BLOCK
-    AGG --> SEC
-    AGG --> GECKO
+    cache --> sources
 ```
 
 ## Data Flow
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart LR
-    subgraph External["External APIs"]
-        Blockscout["Blockscout API"]
-        Gecko["GeckoTerminal"]
-        Goldsky["Goldsky Subgraph"]
-        RPC["Filecoin RPC"]
+    subgraph src[" "]
+        direction TB
+        s1[Blockscout]
+        s2[Gecko]
+        s3[Goldsky]
+        s4[RPC]
     end
 
-    subgraph Server["Server Layer"]
-        Cache["Cache Layer<br/>(TTL: 30-300s)"]
-        ServerFn["Server Functions<br/>(15 async fns)"]
-        SSR["SSR Rendering<br/>(<5ms)"]
+    subgraph srv["Server"]
+        direction TB
+        c[Cache]
+        f[Functions]
+        r[SSR]
     end
 
-    subgraph Client["Client Layer"]
-        WASM["WASM Hydration"]
-        Browser["User Browser"]
+    subgraph cli["Client"]
+        direction TB
+        w[WASM]
+        b[Browser]
     end
 
-    Blockscout --> Cache
-    Gecko --> Cache
-    Goldsky --> Cache
-    RPC --> Cache
-
-    Cache --> ServerFn
-    ServerFn --> SSR
-    SSR --> WASM
-    WASM --> Browser
-
-    Browser -->|"API Requests"| ServerFn
+    src --> c
+    c --> f --> r
+    r --> w --> b
+    b -.-> f
 ```
 
-## API Structure
+## API Endpoints
 
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
-mindmap
-  root((USDFC API))
-    Health
-      /api/v1/health
-    Price
-      /api/v1/price
-    Protocol
-      /api/v1/metrics
-      /api/v1/troves
-    Market
-      /api/v1/holders
-      /api/v1/transactions
-    Lending
-      /api/v1/lending
-    Historical
-      /api/v1/history
+flowchart LR
+    api["/api/v1"]
+
+    api --- h[health]
+    api --- p[price]
+    api --- m[metrics]
+    api --- t[troves]
+    api --- ho[holders]
+    api --- tx[transactions]
+    api --- l[lending]
+    api --- hi[history]
 ```
 
 ## Tech Stack
