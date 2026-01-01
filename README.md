@@ -108,6 +108,7 @@ flowchart LR
 ## API Structure
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 mindmap
   root((USDFC API))
     Health
