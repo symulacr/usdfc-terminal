@@ -396,7 +396,7 @@ pub struct NormalizedAddress {
 /// Get address info from Blockscout
 #[server(GetAddressInfo, "/api")]
 pub async fn get_address_info(address: String) -> Result<AddressInfo, ServerFnError> {
-    crate::error::ValidationError::validate_address(&address)
+    usdfc_core::error::ValidationError::validate_address(&address)
         .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
     #[cfg(feature = "ssr")]
@@ -439,7 +439,7 @@ pub async fn get_address_info(address: String) -> Result<AddressInfo, ServerFnEr
 /// Normalize address formats for display and routing
 #[server(GetNormalizedAddress, "/api")]
 pub async fn get_normalized_address(address: String) -> Result<NormalizedAddress, ServerFnError> {
-    crate::error::ValidationError::validate_address(&address)
+    usdfc_core::error::ValidationError::validate_address(&address)
         .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
     #[cfg(feature = "ssr")]

@@ -9,9 +9,10 @@ license.workspace = true
 crate-type = ["rlib"]
 
 [dependencies]
-# Minimal dependencies - no proc-macros for fast compilation
-serde = { workspace = true }
+# Minimal dependencies - Phase 3 will move serde derives to backend DTOs
+serde = { workspace = true, features = ["derive"] }
 rust_decimal = { workspace = true }
 chrono = { workspace = true, features = ["alloc"] }
 thiserror = { workspace = true }
 once_cell = { workspace = true }
+dotenvy = { workspace = true }

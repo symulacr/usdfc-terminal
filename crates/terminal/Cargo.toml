@@ -40,7 +40,7 @@ leptos_router = { workspace = true }
 leptos_axum = { workspace = true, optional = true }
 
 # Server-side
-axum = { workspace = true, optional = true, features = ["macros"] }
+axum = { workspace = true, optional = true, features = ["macros", "tokio", "http1", "http2"] }
 tokio = { workspace = true, optional = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true, features = ["fs", "cors", "compression-gzip"] }

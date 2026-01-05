@@ -1190,7 +1190,7 @@ impl BlockscoutClient {
     ) -> ApiResult<Vec<(i64, u64)>> {
         use std::collections::BTreeMap;
 
-        let token_address = &crate::config::config().usdfc_token;
+        let token_address = &usdfc_core::config::config().usdfc_token;
 
         // Fetch transfers (up to 200 for good coverage)
         let (transfers, _) = self

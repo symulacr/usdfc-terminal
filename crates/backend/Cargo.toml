@@ -17,7 +17,7 @@ leptos = { workspace = true, features = ["ssr"] }
 leptos_axum = { workspace = true }
 
 # Web framework
-axum = { workspace = true, features = ["macros"] }
+axum = { workspace = true, features = ["macros", "json", "query"] }
 tower = { workspace = true }
 tower-http = { workspace = true, features = ["fs", "cors", "compression-gzip"] }
 
@@ -50,6 +50,9 @@ once_cell = { workspace = true }
 # Decimal
 rust_decimal = { version = "1.39", features = ["serde"] }
 rust_decimal_macros = "1.39"
+
+# Date/time
+chrono = { workspace = true, features = ["serde"] }
 
 # Error handling
 thiserror = { workspace = true }

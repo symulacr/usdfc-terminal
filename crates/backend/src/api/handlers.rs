@@ -256,7 +256,7 @@ pub async fn get_troves_list(Query(params): Query<PaginationQuery>) -> impl Into
 /// Returns trove info for a specific address
 pub async fn get_trove_by_address(Path(addr): Path<String>) -> impl IntoResponse {
     // Validate address format
-    if let Err(e) = crate::error::ValidationError::validate_address(&addr) {
+    if let Err(e) = usdfc_core::error::ValidationError::validate_address(&addr) {
         return (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::error(e.to_string())),
@@ -342,7 +342,7 @@ pub async fn get_transactions(Query(params): Query<PaginationQuery>) -> impl Int
 /// Returns address info including USDFC balance and activity
 pub async fn get_address(Path(addr): Path<String>) -> impl IntoResponse {
     // Validate address format
-    if let Err(e) = crate::error::ValidationError::validate_address(&addr) {
+    if let Err(e) = usdfc_core::error::ValidationError::validate_address(&addr) {
         return (
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::error(e.to_string())),

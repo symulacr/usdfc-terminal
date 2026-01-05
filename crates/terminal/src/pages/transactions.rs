@@ -122,10 +122,10 @@ pub fn TransactionSearch() -> impl IntoView {
                                     .map(|tx| decimal_to_f64(tx.amount))
                                     .sum();
                                 let transfer_count = txs.iter()
-                                    .filter(|tx| matches!(tx.tx_type, crate::types::TransactionType::Transfer))
+                                    .filter(|tx| matches!(tx.tx_type, usdfc_core::types::TransactionType::Transfer))
                                     .count();
                                 let mint_count = txs.iter()
-                                    .filter(|tx| matches!(tx.tx_type, crate::types::TransactionType::Mint))
+                                    .filter(|tx| matches!(tx.tx_type, usdfc_core::types::TransactionType::Mint))
                                     .count();
 
                                 let volume_display = format_volume(total_volume);
@@ -874,7 +874,7 @@ fn TransactionDetailModal(
     // Status display
     let status_class = transaction.status.css_class();
     let status_text = transaction.status.as_str();
-    let is_success = matches!(transaction.status, crate::types::TransactionStatus::Success);
+    let is_success = matches!(transaction.status, usdfc_core::types::TransactionStatus::Success);
 
     // Transaction type
     let tx_type = transaction.tx_type.as_str();

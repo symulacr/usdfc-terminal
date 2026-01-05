@@ -2,28 +2,28 @@
 //!
 //! Provides TTL-based caching for expensive API calls to improve performance.
 
-#[cfg(feature = "ssr")]
+
 use std::collections::HashMap;
-#[cfg(feature = "ssr")]
+
 use std::sync::RwLock;
-#[cfg(feature = "ssr")]
+
 use std::time::{Duration, Instant};
 
 /// Cached data entry with TTL
-#[cfg(feature = "ssr")]
+
 struct CacheEntry<T> {
     data: T,
     expires_at: Instant,
 }
 
 /// Simple TTL-based cache
-#[cfg(feature = "ssr")]
+
 pub struct Cache<T> {
     entries: RwLock<HashMap<String, CacheEntry<T>>>,
     ttl: Duration,
 }
 
-#[cfg(feature = "ssr")]
+
 impl<T: Clone> Cache<T> {
     /// Create a new cache with the specified TTL
     pub fn new(ttl_secs: u64) -> Self {
@@ -65,7 +65,7 @@ impl<T: Clone> Cache<T> {
 }
 
 /// Global cache instances for different data types
-#[cfg(feature = "ssr")]
+
 pub mod caches {
     use super::*;
     use once_cell::sync::Lazy;
@@ -152,7 +152,7 @@ pub mod caches {
 ///     // expensive async operation
 /// })
 /// ```
-#[cfg(feature = "ssr")]
+
 #[macro_export]
 macro_rules! cached_call {
     ($cache:expr, $key:expr, $fetch:expr) => {{
@@ -173,5 +173,5 @@ macro_rules! cached_call {
     }};
 }
 
-#[cfg(feature = "ssr")]
+
 pub use cached_call;

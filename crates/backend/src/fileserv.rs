@@ -1,26 +1,20 @@
 //! File serving utilities for SSR
-//! 
+//!
 //! Handles static file serving and error pages.
 
-#[cfg(feature = "ssr")]
 use axum::{
     body::Body,
     extract::State,
     http::{Request, Response, StatusCode, Uri},
     response::{IntoResponse, Response as AxumResponse},
 };
-#[cfg(feature = "ssr")]
 use leptos::*;
-#[cfg(feature = "ssr")]
 use tower::Service;
-#[cfg(feature = "ssr")]
 use tower_http::services::ServeDir;
 
-#[cfg(feature = "ssr")]
 use crate::state::AppState;
 
 /// File and error handler for static files
-#[cfg(feature = "ssr")]
 pub async fn file_and_error_handler(
     uri: Uri,
     State(options): State<AppState>,
@@ -41,7 +35,6 @@ pub async fn file_and_error_handler(
     }
 }
 
-#[cfg(feature = "ssr")]
 async fn get_static_file(uri: Uri, root: &str) -> Result<Response<Body>, (StatusCode, String)> {
     let req = Request::builder()
         .uri(uri.clone())
@@ -60,7 +53,6 @@ async fn get_static_file(uri: Uri, root: &str) -> Result<Response<Body>, (Status
 }
 
 /// 404 Not Found page
-#[cfg(feature = "ssr")]
 #[component]
 fn NotFound() -> impl IntoView {
     view! {

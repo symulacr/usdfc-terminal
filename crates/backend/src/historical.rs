@@ -9,9 +9,9 @@ use std::sync::RwLock;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "ssr")]
+
 use rusqlite::{Connection, params};
-#[cfg(feature = "ssr")]
+
 use std::sync::Mutex;
 
 /// Default maximum number of snapshots to store (1 week at 1-minute intervals)
@@ -19,19 +19,12 @@ use std::sync::Mutex;
 const DEFAULT_MAX_SNAPSHOTS: usize = 10080;
 
 /// Get configured max snapshots from history_retention_secs
-#[cfg(feature = "ssr")]
 fn max_snapshots() -> usize {
-    (crate::config::config().history_retention_secs / 60) as usize
-}
-
-/// For non-SSR builds, use the default
-#[cfg(not(feature = "ssr"))]
-fn max_snapshots() -> usize {
-    DEFAULT_MAX_SNAPSHOTS
+    (usdfc_core::config::config().history_retention_secs / 60) as usize
 }
 
 /// Get the SQLite database path from environment or use default
-#[cfg(feature = "ssr")]
+
 fn db_path() -> String {
     std::env::var("DATABASE_PATH")
         .unwrap_or_else(|_| "data/metrics_history.db".to_string())
@@ -54,11 +47,11 @@ pub static METRIC_HISTORY: Lazy<RwLock<VecDeque<MetricSnapshot>>> =
     Lazy::new(|| RwLock::new(VecDeque::with_capacity(DEFAULT_MAX_SNAPSHOTS)));
 
 /// SQLite connection (SSR only)
-#[cfg(feature = "ssr")]
+
 pub static DB_CONN: Lazy<Mutex<Option<Connection>>> = Lazy::new(|| Mutex::new(None));
 
 /// Initialize the SQLite database and load existing data into memory
-#[cfg(feature = "ssr")]
+
 pub fn init_db() -> Result<(), rusqlite::Error> {
     let path = db_path();
 
@@ -96,7 +89,7 @@ pub fn init_db() -> Result<(), rusqlite::Error> {
 }
 
 /// Load snapshots from the database into the in-memory cache
-#[cfg(feature = "ssr")]
+
 fn load_from_db(conn: &Connection) -> Result<(), rusqlite::Error> {
     let mut stmt = conn.prepare(
         "SELECT timestamp, tcr, supply, liquidity, holders, lend_apr, borrow_apr
@@ -129,7 +122,7 @@ fn load_from_db(conn: &Connection) -> Result<(), rusqlite::Error> {
 }
 
 /// Save a snapshot to the SQLite database
-#[cfg(feature = "ssr")]
+
 fn save_to_db(snapshot: &MetricSnapshot) -> Result<(), rusqlite::Error> {
     let db_lock = DB_CONN.lock().map_err(|e| {
         tracing::error!("Mutex poison error in save_to_db: {}", e);
@@ -191,7 +184,7 @@ impl MetricSnapshot {
     /// Record a snapshot to history (persists to SQLite on SSR)
     pub fn record(snapshot: MetricSnapshot) {
         // Persist to SQLite database (SSR only)
-        #[cfg(feature = "ssr")]
+        
         {
             if let Err(e) = save_to_db(&snapshot) {
                 tracing::error!("Failed to save snapshot to DB: {}", e);
@@ -293,7 +286,7 @@ impl MetricSnapshot {
 }
 
 /// Collect current metrics and create a snapshot
-#[cfg(feature = "ssr")]
+
 pub async fn collect_current_snapshot() -> Option<MetricSnapshot> {
     use crate::rpc::RpcClient;
     use crate::gecko::GeckoClient;
@@ -355,7 +348,7 @@ pub async fn collect_current_snapshot() -> Option<MetricSnapshot> {
 }
 
 /// Start the background snapshot collector task
-#[cfg(feature = "ssr")]
+
 pub fn start_snapshot_collector() {
     tokio::spawn(async move {
         use std::time::Duration;
@@ -385,7 +378,7 @@ pub fn start_snapshot_collector() {
 }
 
 /// Check database health by executing a simple query
-#[cfg(feature = "ssr")]
+
 pub fn check_db_health() -> Result<(), String> {
     if let Some(ref conn) = *DB_CONN.lock().map_err(|e| e.to_string())? {
         // Simple query to verify database is accessible

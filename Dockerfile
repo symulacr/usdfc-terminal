@@ -1,11 +1,11 @@
 # =============================================================================
-# USDFC Analytics Terminal - Optimized Production Dockerfile
-# Multi-stage build with dependency caching for faster CI builds
+# USDFC Analytics Terminal - Optimized Workspace Dockerfile
+# Multi-stage build with workspace dependency caching
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # Stage 1: Dependency Cache Layer
-# Compiles dependencies separately for better Docker layer caching
+# Compiles workspace dependencies separately for better Docker layer caching
 # -----------------------------------------------------------------------------
 FROM rustlang/rust:nightly-slim AS deps
 
@@ -23,21 +23,27 @@ RUN apt-get update && apt-get install -y \
 # Install WASM target for client-side compilation
 RUN rustup target add wasm32-unknown-unknown
 
-# Install cargo-leptos from pre-built binary (NOT source - saves ~3 minutes)
+# Install cargo-leptos from pre-built binary (saves ~3 minutes)
 RUN curl -L https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/cargo-leptos-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/cargo/bin
 
-# Copy only dependency files first for better caching
+# Copy workspace manifest and crate manifests for dependency caching
 COPY Cargo.toml Cargo.lock ./
+COPY crates/core/Cargo.toml crates/core/Cargo.toml
+COPY crates/backend/Cargo.toml crates/backend/Cargo.toml
+COPY crates/terminal/Cargo.toml crates/terminal/Cargo.toml
 
-# Create dummy main.rs and lib.rs to build dependencies
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    echo "pub fn dummy() {}" > src/lib.rs
+# Create dummy source files to build dependencies only
+RUN mkdir -p crates/core/src crates/backend/src crates/terminal/src && \
+    echo "pub fn dummy() {}" > crates/core/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/backend/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/terminal/src/lib.rs && \
+    echo "fn main() {}" > crates/terminal/src/main.rs
 
-# Build dependencies only (cached layer - only rebuilds when Cargo.toml changes)
+# Build dependencies only (cached layer - rebuilds only when Cargo.toml changes)
 # Use railway profile for faster CI builds
-RUN cargo build --profile railway --features ssr --lib
+RUN cargo build --profile railway -p usdfc-core && \
+    cargo build --profile railway -p usdfc-backend --features ssr
 
 # -----------------------------------------------------------------------------
 # Stage 2: Application Build
@@ -46,15 +52,17 @@ RUN cargo build --profile railway --features ssr --lib
 FROM deps AS builder
 
 # Remove dummy files
-RUN rm -rf src
+RUN rm -rf crates/*/src
 
 # Copy real source code
-COPY src ./src
+COPY crates/core/src crates/core/src
+COPY crates/backend/src crates/backend/src
+COPY crates/terminal/src crates/terminal/src
 COPY public ./public
 
 # Build the application with railway profile
-# This uses cached dependencies from previous layer
-RUN cargo leptos build --profile railway
+# This reuses cached dependencies from previous layer
+RUN cargo leptos build --profile railway -p usdfc-analytics-terminal
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime
@@ -71,7 +79,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /bin/bash appuser
 
-# Copy the compiled binary (railway profile builds to target/railway/)
+# Copy the compiled binary (railway profile)
 COPY --from=builder /app/target/railway/usdfc-analytics-terminal /app/usdfc-analytics-terminal
 
 # Copy the site assets (WASM, CSS, JS, static files)
@@ -80,16 +88,17 @@ COPY --from=builder /app/target/site /app/site
 # Copy public assets
 COPY --from=builder /app/public /app/public
 
-# Copy Cargo.toml for Leptos configuration
+# Copy Cargo.toml files for Leptos configuration
 COPY --from=builder /app/Cargo.toml /app/Cargo.toml
+COPY --from=builder /app/crates/terminal/Cargo.toml /app/crates/terminal/Cargo.toml
 
 # Create data directory for SQLite database
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
+RUN mkdir -p /app/data /app/crates/terminal && chown -R appuser:appuser /app
 
 # Switch to non-root user for security
 USER appuser
 
-# Expose the application port (Railway sets this dynamically)
+# Expose the application port
 EXPOSE ${PORT:-3000}
 
 # Environment variables for Leptos
@@ -99,14 +108,14 @@ ENV LEPTOS_SITE_PKG_DIR="pkg"
 ENV LEPTOS_ENV="PROD"
 ENV RUST_LOG="info"
 
-# Server binding (Railway sets PORT automatically)
+# Server binding
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-# SQLite database path (for Railway Volume)
+# SQLite database path
 ENV DATABASE_PATH=/app/data/analytics.db
 
-# Health check endpoint (uses PORT from environment)
+# Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
 

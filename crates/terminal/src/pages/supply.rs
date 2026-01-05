@@ -191,7 +191,7 @@ pub fn SupplyMetrics() -> impl IntoView {
                                             Ok(txs) => {
                                                 let events: Vec<_> = txs
                                                     .into_iter()
-                                                    .filter(|tx| matches!(tx.tx_type, crate::types::TransactionType::Mint | crate::types::TransactionType::Burn))
+                                                    .filter(|tx| matches!(tx.tx_type, usdfc_core::types::TransactionType::Mint | usdfc_core::types::TransactionType::Burn))
                                                     .collect();
                                                 if events.is_empty() {
                                                     view! {

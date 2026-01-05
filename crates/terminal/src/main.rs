@@ -50,7 +50,7 @@ async fn main() {
     let mut leptos_options = conf.leptos_options;
 
     // Derive bind address from unified Config (env-backed on server, defaults on client)
-    let cfg = usdfc_analytics_terminal::config::config();
+    let cfg = usdfc_core::config::config();
     let addr_str = format!("{}:{}", cfg.host, cfg.port);
     let addr = addr_str.parse().unwrap_or_else(|_| {
         tracing::warn!("Invalid address '{}', falling back to 0.0.0.0:3000", addr_str);
@@ -169,11 +169,11 @@ async fn main() {
 
     // Health check handler - comprehensive health status
     async fn health_handler() -> Json<HealthStatus> {
-        use usdfc_analytics_terminal::rpc::RpcClient;
-        use usdfc_analytics_terminal::blockscout::BlockscoutClient;
-        use usdfc_analytics_terminal::subgraph::SubgraphClient;
-        use usdfc_analytics_terminal::gecko::GeckoClient;
-        use usdfc_analytics_terminal::config::config;
+        use usdfc_backend::rpc::RpcClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
+        use usdfc_backend::subgraph::SubgraphClient;
+        use usdfc_backend::gecko::GeckoClient;
+        use usdfc_core::config::config;
 
         // Check RPC
         let rpc_check = {
@@ -250,7 +250,7 @@ async fn main() {
         // Check SQLite database
         let db_check = {
             let start = std::time::Instant::now();
-            match usdfc_analytics_terminal::historical::check_db_health() {
+            match usdfc_backend::historical::check_db_health() {
                 Ok(_) => CheckResult {
                     status: "ok".to_string(),
                     latency_ms: Some(start.elapsed().as_millis() as u64),
@@ -341,17 +341,17 @@ async fn main() {
         .with_state(app_state);
 
     // Initialize SQLite database for metric history persistence
-    match usdfc_analytics_terminal::historical::init_db() {
+    match usdfc_backend::historical::init_db() {
         Ok(()) => tracing::info!("Initialized metrics database"),
         Err(e) => tracing::error!("Failed to initialize metrics database: {}", e),
     }
 
     // Start background metric snapshot collector
-    usdfc_analytics_terminal::historical::start_snapshot_collector();
+    usdfc_backend::historical::start_snapshot_collector();
     tracing::info!("Started background metric snapshot collector (60s interval)");
 
     // Start background cache cleanup task
-    usdfc_analytics_terminal::cache::caches::start_cache_cleanup();
+    usdfc_backend::cache::caches::start_cache_cleanup();
     tracing::info!("Started background cache cleanup task (60s interval)");
 
     // Start server
