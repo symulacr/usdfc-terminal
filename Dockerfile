@@ -7,7 +7,10 @@
 # Stage 1: Dependency Cache Layer
 # Compiles workspace dependencies separately for better Docker layer caching
 # -----------------------------------------------------------------------------
-FROM rustlang/rust:nightly-slim AS deps
+FROM rust:1.85-slim-bookworm AS deps
+
+# Install Rust nightly (needed for Leptos)
+RUN rustup toolchain install nightly && rustup default nightly
 
 WORKDIR /app
 
