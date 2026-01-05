@@ -30,9 +30,12 @@ fn max_snapshots() -> usize {
     DEFAULT_MAX_SNAPSHOTS
 }
 
-/// Path to the SQLite database file
+/// Get the SQLite database path from environment or use default
 #[cfg(feature = "ssr")]
-const DB_PATH: &str = "data/metrics_history.db";
+fn db_path() -> String {
+    std::env::var("DATABASE_PATH")
+        .unwrap_or_else(|_| "data/metrics_history.db".to_string())
+}
 
 /// A single point-in-time snapshot of all metrics
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -57,10 +60,14 @@ pub static DB_CONN: Lazy<Mutex<Option<Connection>>> = Lazy::new(|| Mutex::new(No
 /// Initialize the SQLite database and load existing data into memory
 #[cfg(feature = "ssr")]
 pub fn init_db() -> Result<(), rusqlite::Error> {
-    // Create data directory if needed
-    std::fs::create_dir_all("data").ok();
+    let path = db_path();
 
-    let conn = Connection::open(DB_PATH)?;
+    // Create parent directory if needed
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+
+    let conn = Connection::open(&path)?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS metric_snapshots (
@@ -124,7 +131,12 @@ fn load_from_db(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// Save a snapshot to the SQLite database
 #[cfg(feature = "ssr")]
 fn save_to_db(snapshot: &MetricSnapshot) -> Result<(), rusqlite::Error> {
-    if let Some(ref conn) = *DB_CONN.lock().unwrap() {
+    let db_lock = DB_CONN.lock().map_err(|e| {
+        tracing::error!("Mutex poison error in save_to_db: {}", e);
+        rusqlite::Error::InvalidQuery
+    })?;
+
+    if let Some(ref conn) = *db_lock {
         conn.execute(
             "INSERT OR REPLACE INTO metric_snapshots
              (timestamp, tcr, supply, liquidity, holders, lend_apr, borrow_apr)
@@ -208,6 +220,10 @@ impl MetricSnapshot {
     }
 
     /// Get historical data filtered by lookback and downsampled by resolution
+    ///
+    /// Returns up to `lookback_mins / resolution_mins + 1` data points.
+    /// The extra point may occur when the current timestamp falls in a new bucket.
+    /// This is expected behavior and provides the most up-to-date data.
     ///
     /// - `lookback_mins`: How far back to look (0 = all data)
     /// - `resolution_mins`: Time bucket size for downsampling

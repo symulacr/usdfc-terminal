@@ -73,7 +73,7 @@ fn SupplyDynamicsTab() -> impl IntoView {
 
     let top_holders = create_resource(
         || (),
-        |_| async move { get_top_holders(Some(10)).await }
+        |_| async move { get_top_holders(Some(10), None).await }
     );
 
     let recent_tx = create_resource(
@@ -612,7 +612,7 @@ fn PoolActivityTab() -> impl IntoView {
 
                     match (transfers, protocol) {
                         (Some(Ok(txs)), Some(Ok(metrics))) => {
-                            let stability_pool_addr = "0x791ad78bbc58324089d3e0a8689e7d045b9592b5".to_lowercase();
+                            let stability_pool_addr = config().stability_pool.to_lowercase();
 
                             let deposits: Vec<_> = txs.iter()
                                 .filter(|tx| tx.to.to_lowercase() == stability_pool_addr)

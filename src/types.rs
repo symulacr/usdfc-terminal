@@ -417,6 +417,7 @@ pub enum ChartResolution {
     #[default]
     H1,   // 1 hour
     H4,   // 4 hours
+    H12,  // 12 hours
     D1,   // 1 day
     W1,   // 1 week
 }
@@ -431,6 +432,7 @@ impl ChartResolution {
             "30m" => Some(Self::M30),
             "1h" => Some(Self::H1),
             "4h" => Some(Self::H4),
+            "12h" => Some(Self::H12),
             "1d" => Some(Self::D1),
             "1w" => Some(Self::W1),
             _ => None,
@@ -443,7 +445,7 @@ impl ChartResolution {
         self.label()
     }
 
-    /// TradingView code (e.g., "1", "5", "15", "60", "240", "D", "W")
+    /// TradingView code (e.g., "1", "5", "15", "60", "240", "720", "D", "W")
     #[inline]
     pub fn tv_code(&self) -> &'static str {
         match self {
@@ -453,6 +455,7 @@ impl ChartResolution {
             Self::M30 => "30",
             Self::H1 => "60",
             Self::H4 => "240",
+            Self::H12 => "720",
             Self::D1 => "D",
             Self::W1 => "W",
         }
@@ -468,6 +471,7 @@ impl ChartResolution {
             Self::M30 => 30,
             Self::H1 => 60,
             Self::H4 => 240,
+            Self::H12 => 720,
             Self::D1 => 1440,
             Self::W1 => 10080,
         }
@@ -489,6 +493,7 @@ impl ChartResolution {
             Self::M30 => "30m",
             Self::H1 => "1h",
             Self::H4 => "4h",
+            Self::H12 => "12h",
             Self::D1 => "1d",
             Self::W1 => "1w",
         }
@@ -504,8 +509,39 @@ impl ChartResolution {
             Self::M30 => ("minute", 30, 100),
             Self::H1 => ("hour", 1, 168),
             Self::H4 => ("hour", 4, 180),
+            Self::H12 => ("hour", 12, 60),
             Self::D1 => ("day", 1, 100),
             Self::W1 => ("day", 7, 52),
+        }
+    }
+
+    /// Get maximum safe lookback for this resolution based on API limits
+    /// Returns the maximum number of minutes that can be safely fetched
+    /// without exceeding GeckoTerminal API candle limits
+    #[inline]
+    pub fn max_safe_lookback_mins(&self) -> u32 {
+        let (_, _, limit) = self.gecko_params();
+        limit * self.minutes()  // candles × minutes_per_candle
+    }
+
+    /// Check if a lookback period is safe for this resolution
+    #[inline]
+    pub fn is_lookback_safe(&self, lookback_mins: u32) -> bool {
+        lookback_mins <= self.max_safe_lookback_mins()
+    }
+
+    /// Get human-readable safe lookback description
+    pub fn safe_lookback_description(&self) -> &'static str {
+        match self {
+            Self::M1 => "~1.7 hours",
+            Self::M5 => "~8 hours",
+            Self::M15 => "~1 day",
+            Self::M30 => "~2 days",
+            Self::H1 => "~1 week",
+            Self::H4 => "~1 month",
+            Self::H12 => "~1 month",
+            Self::D1 => "~3 months",
+            Self::W1 => "~1 year",
         }
     }
 
@@ -513,7 +549,7 @@ impl ChartResolution {
     pub fn all() -> &'static [ChartResolution] {
         &[
             Self::M1, Self::M5, Self::M15, Self::M30,
-            Self::H1, Self::H4, Self::D1, Self::W1,
+            Self::H1, Self::H4, Self::H12, Self::D1, Self::W1,
         ]
     }
 }
@@ -586,7 +622,7 @@ impl ChartLookback {
         }
     }
 
-    /// Duration in minutes (0 = no limit)
+    /// Duration in minutes (capped at 30 days for performance)
     #[inline]
     pub fn minutes(&self) -> u32 {
         match self {
@@ -599,7 +635,7 @@ impl ChartLookback {
             Self::Week2 => 20160,
             Self::Month1 => 43200,
             Self::Month3 => 129600,
-            Self::All => 0,
+            Self::All => 43200,  // Cap at 30 days (same as Month1) for performance
         }
     }
 
@@ -1116,6 +1152,9 @@ pub struct ChartDataResponse {
     pub current_holders: Option<u64>,
     pub current_lend_apr: Option<f64>,
     pub current_borrow_apr: Option<f64>,
+    // Metadata for progressive enhancement
+    pub snapshot_count: usize,
+    pub oldest_snapshot_time: Option<i64>,
 }
 
 impl Default for ChartDataResponse {
@@ -1143,6 +1182,8 @@ impl Default for ChartDataResponse {
             current_holders: None,
             current_lend_apr: None,
             current_borrow_apr: None,
+            snapshot_count: 0,
+            oldest_snapshot_time: None,
         }
     }
 }

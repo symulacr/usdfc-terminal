@@ -38,6 +38,8 @@ pub mod gecko;
 #[cfg(feature = "ssr")]
 pub mod cache;
 #[cfg(feature = "ssr")]
+pub mod circuit_breaker;
+#[cfg(feature = "ssr")]
 pub mod historical;
 
 // Re-export main app component for hydration

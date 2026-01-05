@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 pub struct Config {
     // API Endpoints
     pub rpc_url: String,
+    pub rpc_fallback_urls: Vec<String>,
     pub subgraph_url: String,
     pub blockscout_url: String,
     pub geckoterminal_url: String,
@@ -55,6 +56,10 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             rpc_url: "https://api.node.glif.io/rpc/v1".to_string(),
+            rpc_fallback_urls: vec![
+                "https://filecoin.chainup.net/rpc/v1".to_string(),
+                "https://rpc.ankr.com/filecoin".to_string(),
+            ],
             subgraph_url: "https://api.goldsky.com/api/public/project_cm8i6ca9k24d601wy45zzbsrq/subgraphs/sf-filecoin-mainnet/latest/gn".to_string(),
             blockscout_url: "https://filecoin.blockscout.com/api/v2".to_string(),
             geckoterminal_url: "https://api.geckoterminal.com/api/v2/networks/filecoin".to_string(),
@@ -106,6 +111,13 @@ impl Config {
         
         Self {
             rpc_url: std::env::var("RPC_URL").expect("RPC_URL must be set"),
+            rpc_fallback_urls: std::env::var("RPC_FALLBACK_URLS")
+                .ok()
+                .map(|s| s.split(',').map(|u| u.trim().to_string()).collect())
+                .unwrap_or_else(|| vec![
+                    "https://filecoin.chainup.net/rpc/v1".to_string(),
+                    "https://rpc.ankr.com/filecoin".to_string(),
+                ]),
             subgraph_url: std::env::var("SUBGRAPH_URL").expect("SUBGRAPH_URL must be set"),
             blockscout_url: std::env::var("BLOCKSCOUT_URL").expect("BLOCKSCOUT_URL must be set"),
             geckoterminal_url: std::env::var("GECKOTERMINAL_URL").expect("GECKOTERMINAL_URL must be set"),

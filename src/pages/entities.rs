@@ -15,7 +15,7 @@ pub fn EntityRegistry() -> impl IntoView {
     // Fetch more holders for pagination (50 instead of 20)
     let holders = create_resource(
         || (),
-        |_| async move { get_top_holders(Some(50)).await }
+        |_| async move { get_top_holders(Some(50), None).await }
     );
 
     let pool_data = create_resource(

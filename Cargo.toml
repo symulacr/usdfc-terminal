@@ -10,9 +10,6 @@ license = "MIT"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-Oz", "--enable-simd", "--enable-bulk-memory"]
-
 [package.metadata.leptos]
 output-name = "usdfc-terminal"
 site-root = "target/site"
@@ -28,6 +25,7 @@ bin-features = ["ssr"]
 bin-default-features = false
 lib-features = ["hydrate"]
 lib-default-features = false
+wasm-opt-features = ["-Oz", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext"]
 
 [dependencies]
 # Core framework

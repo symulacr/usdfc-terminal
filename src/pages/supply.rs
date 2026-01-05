@@ -22,7 +22,7 @@ pub fn SupplyMetrics() -> impl IntoView {
 
     let top_holders = create_resource(
         || (),
-        |_| async move { get_top_holders(Some(10)).await }
+        |_| async move { get_top_holders(Some(10), None).await }
     );
 
     view! {

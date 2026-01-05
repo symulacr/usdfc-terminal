@@ -69,38 +69,19 @@ impl<T: Clone> Cache<T> {
 pub mod caches {
     use super::*;
     use once_cell::sync::Lazy;
-    use crate::types::{ProtocolMetrics, Trove, Transaction};
+    use crate::types::{ProtocolMetrics, Trove, Transaction, ChartDataResponse};
     use crate::server_fn::{
-        USDFCPriceData, LendingMarketData, TokenHolderInfo,
+        AddressInfo, USDFCPriceData, LendingMarketData, TokenHolderInfo, DailyVolumeData, OrderBookData, LendingTradeData,
     };
-    use rust_decimal::Decimal;
 
     /// Cache for protocol metrics (15 second TTL - updates frequently)
     pub static PROTOCOL_METRICS: Lazy<Cache<ProtocolMetrics>> = Lazy::new(|| Cache::new(15));
 
-    /// Cache for troves list (120 second TTL - trove data changes slowly)
-    pub static TROVES: Lazy<Cache<Vec<Trove>>> = Lazy::new(|| Cache::new(120));
-
-    /// Cache for FIL price (30 second TTL - price sensitive but not ultra-frequent)
-    pub static FIL_PRICE: Lazy<Cache<Decimal>> = Lazy::new(|| Cache::new(30));
-
-    /// Cache for recent transactions (15 second TTL)
-    pub static RECENT_TRANSACTIONS: Lazy<Cache<Vec<Transaction>>> = Lazy::new(|| Cache::new(15));
+    /// Cache for troves list (30 second TTL - aligned with price updates for ICR accuracy)
+    pub static TROVES: Lazy<Cache<Vec<Trove>>> = Lazy::new(|| Cache::new(30));
 
     /// Cache for USDFC price data (30 second TTL)
     pub static USDFC_PRICE: Lazy<Cache<USDFCPriceData>> = Lazy::new(|| Cache::new(30));
-
-    /// Cache for total supply (60 second TTL - changes infrequently)
-    pub static TOTAL_SUPPLY: Lazy<Cache<Decimal>> = Lazy::new(|| Cache::new(60));
-
-    /// Cache for total collateral (60 second TTL - changes infrequently)
-    pub static TOTAL_COLLATERAL: Lazy<Cache<Decimal>> = Lazy::new(|| Cache::new(60));
-
-    /// Cache for TCR (30 second TTL)
-    pub static TCR: Lazy<Cache<Decimal>> = Lazy::new(|| Cache::new(30));
-
-    /// Cache for stability pool balance (60 second TTL)
-    pub static STABILITY_POOL_BALANCE: Lazy<Cache<Decimal>> = Lazy::new(|| Cache::new(60));
 
     /// Cache for lending pools/markets (60 second TTL)
     pub static LENDING_MARKETS: Lazy<Cache<Vec<LendingMarketData>>> = Lazy::new(|| Cache::new(60));
@@ -110,6 +91,57 @@ pub mod caches {
 
     /// Cache for holder count (300 second TTL - count changes slowly)
     pub static HOLDER_COUNT: Lazy<Cache<u64>> = Lazy::new(|| Cache::new(300));
+
+    /// Cache for advanced chart data (30 second TTL - balances freshness with API load)
+    pub static ADVANCED_CHART_DATA: Lazy<Cache<ChartDataResponse>> = Lazy::new(|| Cache::new(30));
+
+    // NEW CACHES FOR CORE CHANGE #3
+    /// Cache for recent transactions (10 second TTL - new tx appear frequently)
+    pub static RECENT_TRANSACTIONS: Lazy<Cache<Vec<Transaction>>> = Lazy::new(|| Cache::new(10));
+
+    /// Cache for address info (30 second TTL - balance changes moderately)
+    pub static ADDRESS_INFO: Lazy<Cache<AddressInfo>> = Lazy::new(|| Cache::new(30));
+
+    /// Cache for daily volumes (300 second TTL - historical data, changes slowly)
+    pub static DAILY_VOLUMES: Lazy<Cache<Vec<DailyVolumeData>>> = Lazy::new(|| Cache::new(300));
+
+    /// Cache for stability pool transfers (30 second TTL)
+    pub static STABILITY_TRANSFERS: Lazy<Cache<Vec<Transaction>>> = Lazy::new(|| Cache::new(30));
+
+    /// Cache for order book data (5 second TTL - real-time trading data)
+    pub static ORDER_BOOK: Lazy<Cache<OrderBookData>> = Lazy::new(|| Cache::new(5));
+
+    /// Cache for recent lending trades (30 second TTL)
+    pub static LENDING_TRADES: Lazy<Cache<Vec<LendingTradeData>>> = Lazy::new(|| Cache::new(30));
+
+    /// Start background task to periodically clean expired cache entries
+    /// Prevents memory leaks from accumulating expired entries
+    pub fn start_cache_cleanup() {
+        tokio::spawn(async {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+
+                // Clean all cache instances
+                PROTOCOL_METRICS.cleanup();
+                TROVES.cleanup();
+                USDFC_PRICE.cleanup();
+                LENDING_MARKETS.cleanup();
+                TOKEN_HOLDERS.cleanup();
+                HOLDER_COUNT.cleanup();
+                ADVANCED_CHART_DATA.cleanup();
+                // Clean new caches
+                RECENT_TRANSACTIONS.cleanup();
+                ADDRESS_INFO.cleanup();
+                DAILY_VOLUMES.cleanup();
+                STABILITY_TRANSFERS.cleanup();
+                ORDER_BOOK.cleanup();
+                LENDING_TRADES.cleanup();
+
+                tracing::debug!("Cleaned expired cache entries");
+            }
+        });
+    }
 }
 
 /// Helper macro for cached server function calls

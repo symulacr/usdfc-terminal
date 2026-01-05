@@ -1,0 +1,13 @@
+[phases.setup]
+nixPkgs = ["rust", "cargo", "rustc", "pkg-config", "openssl"]
+
+[phases.build]
+cmds = [
+    "cargo build --release --bin usdfc-analytics-terminal --features ssr"
+]
+
+[start]
+cmd = "./target/release/usdfc-analytics-terminal"
+
+[variables]
+RUST_LOG = "info"

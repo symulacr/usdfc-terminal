@@ -502,103 +502,126 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                 type: 'bar',
                                 yAxisIndex: 1,
                                 data: volumeData,
-                                barMaxWidth: 20
+                                barMaxWidth: 20,
+                                itemStyle: {{ color: 'rgba(139, 92, 246, 0.6)' }},
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Liquidity series (from historical snapshots)
-                        if ({show_liquidity} && liquidityData.length > 0) {{
+                        if ({show_liquidity}) {{
                             series.push({{
                                 name: 'Liquidity',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: liquidityData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#06b6d4' }},
                                 itemStyle: {{ color: '#06b6d4' }},
                                 data: liquidityData,
-                                yAxisIndex: 2
+                                yAxisIndex: 2,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // TCR series (from historical snapshots)
-                        if ({show_tcr} && tcrData.length > 0) {{
+                        if ({show_tcr}) {{
                             series.push({{
                                 name: 'TCR',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: tcrData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#22c55e' }},
                                 itemStyle: {{ color: '#22c55e' }},
                                 data: tcrData,
-                                yAxisIndex: 3
+                                yAxisIndex: 3,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Supply series (from historical snapshots)
-                        if ({show_supply} && supplyData.length > 0) {{
+                        if ({show_supply}) {{
                             series.push({{
                                 name: 'Supply',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: supplyData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#f59e0b' }},
                                 itemStyle: {{ color: '#f59e0b' }},
                                 data: supplyData,
-                                yAxisIndex: 4
+                                yAxisIndex: 4,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Holders series (from historical snapshots)
-                        if ({show_holders} && holdersData.length > 0) {{
+                        if ({show_holders}) {{
                             series.push({{
                                 name: 'Holders',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: holdersData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#ec4899' }},
                                 itemStyle: {{ color: '#ec4899' }},
                                 data: holdersData,
-                                yAxisIndex: 5
+                                yAxisIndex: 5,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Lend APR series (from historical snapshots)
-                        if ({show_lend_apr} && lendAprData.length > 0) {{
+                        if ({show_lend_apr}) {{
                             series.push({{
                                 name: 'Lend APR',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: lendAprData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#10b981' }},
                                 itemStyle: {{ color: '#10b981' }},
                                 data: lendAprData,
-                                yAxisIndex: 6
+                                yAxisIndex: 6,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Borrow APR series (from historical snapshots)
-                        if ({show_borrow_apr} && borrowAprData.length > 0) {{
+                        if ({show_borrow_apr}) {{
                             series.push({{
                                 name: 'Borrow APR',
                                 type: 'line',
                                 smooth: true,
-                                showSymbol: false,
+                                showSymbol: borrowAprData.length <= 1,
+                                symbolSize: 8,
                                 lineStyle: {{ width: 2, color: '#f97316' }},
                                 itemStyle: {{ color: '#f97316' }},
                                 data: borrowAprData,
-                                yAxisIndex: 6  // Share with Lend APR
+                                yAxisIndex: 6,  // Share with Lend APR
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
                         // Transfers series (from Blockscout)
-                        if ({show_transfers} && transfersData.length > 0) {{
+                        if ({show_transfers}) {{
                             series.push({{
                                 name: 'Transfers',
                                 type: 'bar',
                                 barMaxWidth: 15,
                                 itemStyle: {{ color: 'rgba(99, 102, 241, 0.7)' }},
                                 data: transfersData,
-                                yAxisIndex: 7
+                                yAxisIndex: 7,
+                                animation: true,
+                                animationDuration: 300
                             }});
                         }}
 
@@ -759,7 +782,29 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                 type: 'time',
                                 boundaryGap: false,
                                 axisLine: {{ lineStyle: {{ color: '#333' }} }},
-                                axisLabel: {{ color: '#888' }},
+                                axisLabel: {{
+                                    color: '#888',
+                                    formatter: function(value) {{
+                                        var date = new Date(value);
+                                        var now = new Date();
+                                        var diffHours = (now - date) / (1000 * 60 * 60);
+
+                                        // Dynamic formatting based on time range
+                                        if (diffHours < 24) {{
+                                            // Last 24 hours: show time
+                                            return date.toLocaleTimeString('en-US', {{ hour: '2-digit', minute: '2-digit', hour12: false }});
+                                        }} else if (diffHours < 168) {{
+                                            // Last week: show day and time
+                                            return date.toLocaleDateString('en-US', {{ month: 'short', day: 'numeric' }})
+                                                + ' ' + date.toLocaleTimeString('en-US', {{ hour: '2-digit', hour12: false }});
+                                        }} else {{
+                                            // Longer: show date only
+                                            return date.toLocaleDateString('en-US', {{ month: 'short', day: 'numeric' }});
+                                        }}
+                                    }},
+                                    rotate: 0,
+                                    hideOverlap: true
+                                }},
                                 splitLine: {{
                                     show: true,
                                     lineStyle: {{ color: 'rgba(255,255,255,0.05)' }}
@@ -1196,6 +1241,51 @@ pub fn AdvancedAnalytics() -> impl IntoView {
 
                 // Chart Footer with controls
                 <div class="lz-chart-footer">
+                    // WARNING BANNER: Show when lookback exceeds safe limit
+                    <Show when=move || {
+                        !resolution.get().is_lookback_safe(lookback.get().minutes())
+                    }>
+                        <div class="api-limit-warning">
+                            <span class="warning-icon">"⚠"</span>
+                            <span class="warning-text">
+                                "Data limited to last "
+                                {resolution.get().safe_lookback_description()}
+                                " due to API constraints. Consider using "
+                                {move || {
+                                    // Suggest better resolution
+                                    match resolution.get() {
+                                        ChartResolution::M1 | ChartResolution::M5 => "15-minute or hourly",
+                                        ChartResolution::M15 | ChartResolution::M30 => "hourly",
+                                        _ => "daily"
+                                    }
+                                }}
+                                " resolution for longer periods."
+                            </span>
+                        </div>
+                    </Show>
+
+                    // INFO BANNER: Show when historical snapshots are still building
+                    <Show when=move || {
+                        match chart_data.get() {
+                            ChartDataResponse { snapshot_count, .. } if snapshot_count < 10 => true,
+                            _ => false
+                        }
+                    }>
+                        <div class="snapshot-info-banner">
+                            <span class="info-icon">"ℹ️"</span>
+                            <span class="info-text">
+                                {move || {
+                                    let count = chart_data.get().snapshot_count;
+                                    if count == 0 {
+                                        "Historical data collecting... Charts will show full trends in a few minutes (currently showing latest values only)".to_string()
+                                    } else {
+                                        format!("Building historical data: {} snapshots collected. Full charts available in ~{} minutes.", count, 10 - count)
+                                    }
+                                }}
+                            </span>
+                        </div>
+                    </Show>
+
                     <div class="resolution-buttons">
                         <For
                             each={move || ChartResolution::all().iter().copied()}
@@ -1205,7 +1295,12 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                 view! {
                                     <button
                                         class=move || if is_active() { "res-btn active" } else { "res-btn" }
-                                        on:click=move |_| resolution.set(r)
+                                        on:click=move |_| {
+                                            // Only update if different from current selection
+                                            if resolution.get() != r {
+                                                resolution.set(r);
+                                            }
+                                        }
                                     >
                                         {r.label()}
                                     </button>
@@ -1241,10 +1336,13 @@ pub fn AdvancedAnalytics() -> impl IntoView {
                                         <button
                                             class=move || if is_active() { "lb-btn active" } else { "lb-btn" }
                                             on:click=move |_| {
-                                                lookback.set(lb);
-                                                // Clear custom range when using presets
-                                                set_custom_start.set(None);
-                                                set_custom_end.set(None);
+                                                // Only update if different from current selection
+                                                if lookback.get() != lb || is_custom_range_active() {
+                                                    lookback.set(lb);
+                                                    // Clear custom range when using presets
+                                                    set_custom_start.set(None);
+                                                    set_custom_end.set(None);
+                                                }
                                             }
                                         >
                                             {lb.label()}

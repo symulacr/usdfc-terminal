@@ -10,6 +10,7 @@ use std::time::Duration;
 pub struct RpcClient {
     client: reqwest::Client,
     url: String,
+    fallback_urls: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -44,10 +45,87 @@ impl RpcClient {
                 .build()
                 .expect("failed to build RPC HTTP client"),
             url: config().rpc_url.clone(),
+            fallback_urls: config().rpc_fallback_urls.clone(),
         }
     }
 
-    /// Make a JSON-RPC call
+    /// Try a single RPC URL with retries
+    async fn call_with_url(&self, url: &str, request: &JsonRpcRequest) -> ApiResult<Value> {
+        let max_retries = config().rpc_retry_count;
+        let mut last_error = None;
+
+        for attempt in 0..=max_retries {
+            // Exponential backoff: 0ms, 100ms, 200ms, 400ms, 800ms...
+            if attempt > 0 {
+                let backoff_ms = 100 * (1 << (attempt - 1));
+                tracing::warn!(
+                    "RPC retry attempt {}/{} for {} on {} after {}ms backoff",
+                    attempt,
+                    max_retries,
+                    request.method,
+                    url,
+                    backoff_ms
+                );
+                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+            }
+
+            let response = match self
+                .client
+                .post(url)
+                .json(&request)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = Some(ApiError::RpcError(format!("HTTP error: {}", e)));
+                    continue; // Retry on network errors
+                }
+            };
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "failed to read body".to_string());
+
+                // Retry on 5xx server errors, fail immediately on 4xx client errors
+                if status.is_server_error() {
+                    last_error = Some(ApiError::RpcError(format!("HTTP {}: {}", status, body)));
+                    continue;
+                } else {
+                    return Err(ApiError::RpcError(format!("HTTP {}: {}", status, body)));
+                }
+            }
+
+            let rpc_response: JsonRpcResponse = match response.json().await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = Some(ApiError::RpcError(format!("Parse error: {}", e)));
+                    continue; // Retry on parse errors
+                }
+            };
+
+            if let Some(error) = rpc_response.error {
+                // RPC-level errors (contract reverts, etc.) should not retry
+                return Err(ApiError::RpcError(format!(
+                    "RPC error {}: {}",
+                    error.code, error.message
+                )));
+            }
+
+            // Success
+            return rpc_response
+                .result
+                .ok_or_else(|| ApiError::RpcError("No result in response".to_string()));
+        }
+
+        // All retries exhausted for this URL
+        Err(last_error.unwrap_or_else(|| ApiError::RpcError("All retries failed".to_string())))
+    }
+
+    /// Make a JSON-RPC call with retry logic, exponential backoff, and fallback URLs
     async fn call(&self, method: &str, params: Vec<Value>) -> ApiResult<Value> {
         let request = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -56,38 +134,34 @@ impl RpcClient {
             id: 1,
         };
 
-        let response = self
-            .client
-            .post(&self.url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ApiError::RpcError(format!("HTTP error: {}", e)))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .map_err(|e| ApiError::RpcError(format!("HTTP {}: failed to read body: {}", status, e)))?;
-            return Err(ApiError::RpcError(format!("HTTP {}: {}", status, body)));
+        // Try primary URL first
+        match self.call_with_url(&self.url, &request).await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                tracing::warn!("Primary RPC URL {} failed: {}. Trying fallbacks...", self.url, e);
+            }
         }
 
-        let rpc_response: JsonRpcResponse = response
-            .json()
-            .await
-            .map_err(|e| ApiError::RpcError(format!("Parse error: {}", e)))?;
-
-        if let Some(error) = rpc_response.error {
-            return Err(ApiError::RpcError(format!(
-                "RPC error {}: {}",
-                error.code, error.message
-            )));
+        // Try fallback URLs
+        for fallback_url in &self.fallback_urls {
+            tracing::info!("Trying fallback RPC URL: {}", fallback_url);
+            match self.call_with_url(fallback_url, &request).await {
+                Ok(result) => {
+                    tracing::info!("Fallback RPC URL {} succeeded", fallback_url);
+                    return Ok(result);
+                }
+                Err(e) => {
+                    tracing::warn!("Fallback RPC URL {} failed: {}", fallback_url, e);
+                    continue;
+                }
+            }
         }
 
-        rpc_response
-            .result
-            .ok_or_else(|| ApiError::RpcError("No result in response".to_string()))
+        // All URLs exhausted
+        Err(ApiError::RpcError(format!(
+            "All RPC endpoints failed (tried {} URLs)",
+            1 + self.fallback_urls.len()
+        )))
     }
 
     /// Call a contract method (eth_call)
@@ -176,6 +250,20 @@ impl RpcClient {
         Ok(wei / divisor)
     }
 
+    /// Get active pool collateral (FIL) - used for historical TCR calculation
+    pub async fn get_active_pool_eth(&self) -> ApiResult<Decimal> {
+        // getETH() function signature: 0x4a59ff51
+        let data = "0x4a59ff51";
+        let result = self.eth_call(&config().active_pool, data).await?;
+
+        let value = u128::from_str_radix(result.trim_start_matches("0x"), 16)
+            .map_err(|e| ApiError::RpcError(format!("Parse error: {}", e)))?;
+
+        let wei = Decimal::from_i128_with_scale(value as i128, 0);
+        let divisor = Decimal::from_i128_with_scale(10_i128.pow(18), 0);
+        Ok(wei / divisor)
+    }
+
     /// Get total system debt from TroveManager
     pub async fn get_total_debt(&self) -> ApiResult<Decimal> {
         // getEntireSystemDebt() function signature: 0x284ce5d8
@@ -199,7 +287,13 @@ impl RpcClient {
         // since in Liquity-style protocols: total_debt ≈ total_usdfc_supply
         let total_debt = match self.get_total_debt().await {
             Ok(debt) => debt,
-            Err(_) => {
+            Err(e) => {
+                // CRITICAL: Log fallback behavior for monitoring
+                tracing::warn!(
+                    "get_total_debt() failed with error: {}. Falling back to total supply as debt approximation. \
+                    This may indicate contract incompatibility or RPC issues.",
+                    e
+                );
                 // Fallback: use USDFC total supply as debt approximation
                 self.get_total_supply().await?
             }

@@ -4319,6 +4319,56 @@ img {
   padding: 8px 12px;
   background: rgba(255,255,255,0.02);
   border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+/* API Limit Warning Banner */
+.api-limit-warning {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #fbbf24;
+  width: 100%;
+}
+
+.warning-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.warning-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* Snapshot Info Banner */
+.snapshot-info-banner {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #3b82f6;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.info-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.info-text {
+  flex: 1;
+  line-height: 1.4;
 }
 
 /* Resolution and Lookback Buttons */
