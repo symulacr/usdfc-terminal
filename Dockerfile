@@ -26,8 +26,8 @@ RUN rustup target add wasm32-unknown-unknown
 # Install cargo-leptos build tool (latest version, compatible with nightly and wasm-bindgen 0.2.106)
 RUN cargo install --locked cargo-leptos
 
-# Cache bust for rebuilds - updated 2026-01-05 16:00 UTC
-ARG CACHE_BUST=2026-01-05-16:00
+# Cache bust for rebuilds - updated 2026-01-05 17:30 UTC
+ARG CACHE_BUST=2026-01-05-17:30-cursor-pagination
 RUN echo "Cache bust: ${CACHE_BUST}"
 
 # Copy source files
