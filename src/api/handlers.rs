@@ -26,6 +26,23 @@ use crate::rpc::RpcClient;
 use rust_decimal::prelude::ToPrimitive;
 
 // ============================================================================
+// Version Endpoint
+// ============================================================================
+
+/// GET /api/v1/version
+/// Returns API version and build info
+pub async fn get_version() -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "version": "cursor-pagination-v1",
+            "build_date": "2026-01-05-17:00",
+            "pagination_type": "cursor-based"
+        }))
+    )
+}
+
+// ============================================================================
 // Health Endpoint
 // ============================================================================
 

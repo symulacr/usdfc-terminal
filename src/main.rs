@@ -308,6 +308,7 @@ async fn main() {
         .route("/v1/price", get(handlers::get_price))
         .route("/v1/metrics", get(handlers::get_metrics))
         .route("/v1/health", get(handlers::get_health))
+        .route("/v1/version", get(handlers::get_version))
         .route("/v1/history", get(handlers::get_history))
         .route("/v1/troves", get(handlers::get_troves_list))
         .route("/v1/troves/:addr", get(handlers::get_trove_by_address))
@@ -347,6 +348,10 @@ async fn main() {
     // Start background metric snapshot collector
     usdfc_analytics_terminal::historical::start_snapshot_collector();
     tracing::info!("Started background metric snapshot collector (60s interval)");
+
+    // Start background cache cleanup task
+    usdfc_analytics_terminal::cache::caches::start_cache_cleanup();
+    tracing::info!("Started background cache cleanup task (60s interval)");
 
     // Start server
     tracing::info!("Starting USDFC Analytics Terminal on http://{}", addr);
