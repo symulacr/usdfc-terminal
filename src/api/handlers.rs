@@ -396,32 +396,41 @@ pub async fn get_lending() -> impl IntoResponse {
 // Holders Endpoint
 // ============================================================================
 
-/// GET /api/v1/holders
-/// Returns top USDFC holders with pagination support
+/// GET /api/v1/holders?cursor=xxx
+/// Returns USDFC holders with cursor-based pagination
+/// Pass cursor from previous response to get next page
 pub async fn get_holders(Query(params): Query<PaginationQuery>) -> impl IntoResponse {
-    let limit = params.limit.unwrap_or(20).min(100); // Increased from 50 to 100
-    let offset = params.offset.unwrap_or(0);
+    use crate::blockscout::BlockscoutClient;
+    use crate::config::config;
+
+    let blockscout = BlockscoutClient::new();
+    let cursor = params.cursor.as_deref();
 
     let (holders_result, count_result) = tokio::join!(
-        get_top_holders(Some(limit), Some(offset)),
+        blockscout.get_token_holders_cursor(&config().usdfc_token, cursor),
         get_holder_count()
     );
 
     match holders_result {
-        Ok(holders) => {
+        Ok((holders, next_cursor)) => {
             let holder_responses: Vec<TokenHolderResponse> = holders
                 .into_iter()
                 .map(|h| TokenHolderResponse {
                     address: h.address,
                     balance: h.balance.to_string(),
-                    share: None, // Could calculate if we had total supply
+                    share: None,
                 })
                 .collect();
 
-            let response = TopHoldersResponse {
-                holders: holder_responses,
-                total_holders: count_result.ok(),
-            };
+            let mut response = serde_json::json!({
+                "holders": holder_responses,
+                "total_holders": count_result.ok(),
+            });
+
+            if let Some(cursor) = next_cursor {
+                response["next_cursor"] = serde_json::Value::String(cursor);
+            }
+
             (StatusCode::OK, Json(ApiResponse::success(response)))
         }
         Err(e) => (

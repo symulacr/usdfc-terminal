@@ -240,8 +240,10 @@ pub struct HistoryQuery {
 pub struct PaginationQuery {
     /// Number of items per page (default: 20, max: 100)
     pub limit: Option<u32>,
-    /// Page offset (default: 0)
+    /// Page offset (default: 0) - deprecated, use cursor instead
     pub offset: Option<u32>,
+    /// Pagination cursor for next page
+    pub cursor: Option<String>,
 }
 
 /// Token holder response

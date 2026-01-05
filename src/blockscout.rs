@@ -227,107 +227,70 @@ impl Default for BlockscoutClient {
 }
 
 impl BlockscoutClient {
-    /// Get top token holders
-    /// Note: Blockscout v2 API doesn't support a limit query param for holders endpoint.
-    /// Get token holders with pagination support
-    /// Returns up to `limit` holders starting from `offset`
-    pub async fn get_token_holders(&self, token: &str, limit: u32, offset: u32) -> ApiResult<Vec<TokenHolder>> {
-        const ITEMS_PER_PAGE: u32 = 50; // Blockscout returns 50 items per page
+    /// Get token holders with cursor-based pagination
+    /// Pass cursor (next_page_params from previous response) to get next page
+    /// Returns holders and next page cursor
+    pub async fn get_token_holders_cursor(
+        &self,
+        token: &str,
+        cursor: Option<&str>,
+    ) -> ApiResult<(Vec<TokenHolder>, Option<String>)> {
+        let mut url = format!("{}/tokens/{}/holders", self.base_url, token);
 
-        // First, fetch all pages until we have enough items (offset + limit)
-        let total_items_needed = offset + limit;
-        let mut all_fetched_holders: Vec<TokenHolder> = Vec::new();
-        let mut next_page_params: Option<serde_json::Value> = None;
-        let max_pages = ((total_items_needed + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE).max(1); // Ceiling division
+        // Add cursor params if provided
+        if let Some(cursor_str) = cursor {
+            // Cursor is already URL-encoded query string
+            url = format!("{}?{}", url, cursor_str);
+        }
 
-        tracing::info!("get_token_holders: limit={}, offset={}, total_needed={}, max_pages={}", limit, offset, total_items_needed, max_pages);
+        let response = self.client.get(&url).send().await
+            .map_err(|e| ApiError::HttpError(format!("Request failed: {}", e)))?;
 
-        // Fetch pages until we have enough items
-        for page_num in 0..max_pages {
-            tracing::info!("Fetching page {}/{}", page_num + 1, max_pages);
-            let mut url = format!("{}/tokens/{}/holders", self.base_url, token);
+        if !response.status().is_success() {
+            return Err(ApiError::HttpError(format!(
+                "HTTP {}: Failed to fetch holders",
+                response.status()
+            )));
+        }
 
-            // Add pagination params for pages after the first
-            if let Some(ref params) = next_page_params {
-                // Skip if params is null (indicates no more pages)
-                if params.is_null() {
-                    break; // No more pages available
-                }
-                if let Some(params_obj) = params.as_object() {
-                    let query_params: Vec<String> = params_obj
-                        .iter()
-                        .map(|(k, v)| {
-                            let value_str = match v {
-                                serde_json::Value::String(s) => s.clone(),
-                                serde_json::Value::Number(n) => n.to_string(),
-                                serde_json::Value::Bool(b) => b.to_string(),
-                                _ => v.to_string(),
-                            };
-                            format!("{}={}", k, value_str)
-                        })
-                        .collect();
-                    if !query_params.is_empty() {
-                        url = format!("{}?{}", url, query_params.join("&"));
-                    }
-                }
-            }
+        let data: HoldersResponse = response.json().await
+            .map_err(|e| ApiError::HttpError(format!("Parse holders: {}", e)))?;
 
-            let response = self
-                .client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| ApiError::HttpError(format!("Request failed: {}", e)))?;
-
-            if !response.status().is_success() {
-                return Err(ApiError::HttpError(format!(
-                    "HTTP {}: Failed to fetch holders",
-                    response.status()
-                )));
-            }
-
-            let data: HoldersResponse = response
-                .json()
-                .await
-                .map_err(|e| ApiError::HttpError(format!("Parse holders: {}", e)))?;
-
-            // Parse and collect holders from this page
-            for item in data.items {
-                let value_wei = item.value.parse::<u128>()
-                    .map_err(|e| ApiError::parse("holder_balance", format!("{}", e)))?;
+        // Parse holders
+        let holders: Vec<TokenHolder> = data.items
+            .into_iter()
+            .map(|item| {
+                let value_wei = item.value.parse::<u128>()?;
                 let value_decimal = Decimal::from(value_wei) / Decimal::from(10_u128.pow(18));
-
-                all_fetched_holders.push(TokenHolder {
+                Ok(TokenHolder {
                     address: item.address.hash,
                     balance: value_decimal,
-                });
+                })
+            })
+            .collect::<ApiResult<Vec<_>>>()?;
+
+        // Convert next_page_params to query string
+        let next_cursor = data.next_page_params.and_then(|params| {
+            if params.is_null() {
+                return None;
             }
+            params.as_object().map(|obj| {
+                obj.iter()
+                    .map(|(k, v)| {
+                        let value_str = match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            serde_json::Value::Number(n) => n.to_string(),
+                            serde_json::Value::Bool(b) => b.to_string(),
+                            _ => v.to_string(),
+                        };
+                        format!("{}={}", k, value_str)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("&")
+            })
+        });
 
-            // Update pagination params for next iteration
-            next_page_params = data.next_page_params.clone();
-
-            tracing::info!("After page {}: collected {} holders total, has_next_page={}", page_num + 1, all_fetched_holders.len(), next_page_params.is_some());
-
-            // Stop if we have enough items or no more pages
-            if all_fetched_holders.len() >= total_items_needed as usize || next_page_params.is_none() {
-                tracing::info!("Breaking: enough_items={}, no_more_pages={}", all_fetched_holders.len() >= total_items_needed as usize, next_page_params.is_none());
-                break;
-            }
-        }
-
-        // Now slice the results to return only the requested range
-        let start_idx = offset as usize;
-        let end_idx = (start_idx + limit as usize).min(all_fetched_holders.len());
-
-        tracing::info!("Slicing: start={}, end={}, total_fetched={}", start_idx, end_idx, all_fetched_holders.len());
-
-        if start_idx >= all_fetched_holders.len() {
-            return Ok(Vec::new()); // Offset beyond available data
-        }
-
-        let result = all_fetched_holders[start_idx..end_idx].to_vec();
-        tracing::info!("Returning {} holders", result.len());
-        Ok(result)
+        Ok((holders, next_cursor))
     }
 
     /// Get token balance for a specific address
