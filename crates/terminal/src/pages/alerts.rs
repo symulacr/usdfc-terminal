@@ -8,7 +8,7 @@ pub fn Alerts() -> impl IntoView {
         || (),
         |_| async move { get_protocol_metrics().await }
     );
-    let transactions = create_resource(
+    let transactions: leptos::Resource<(), Result<Vec<usdfc_core::types::Transaction>, leptos::ServerFnError>> = create_resource(
         || (),
         |_| async move { get_recent_transactions(Some(25)).await }
     );

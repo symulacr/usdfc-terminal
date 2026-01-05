@@ -121,6 +121,7 @@ ssr = [
 ]
 
 hydrate = [
+    "dep:usdfc-backend",
     "leptos/hydrate",
     "leptos_meta/hydrate",
     "leptos_router/hydrate",

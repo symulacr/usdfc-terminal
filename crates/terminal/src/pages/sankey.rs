@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[component]
 pub fn SankeyCharts() -> impl IntoView {
-    let recent_tx = create_resource(
+    let recent_tx: leptos::Resource<(), Result<Vec<usdfc_core::types::Transaction>, leptos::ServerFnError>> = create_resource(
         || (),
         |_| async move { get_recent_transactions(Some(100)).await }
     );
