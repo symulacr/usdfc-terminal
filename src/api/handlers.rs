@@ -397,12 +397,13 @@ pub async fn get_lending() -> impl IntoResponse {
 // ============================================================================
 
 /// GET /api/v1/holders
-/// Returns top USDFC holders
+/// Returns top USDFC holders with pagination support
 pub async fn get_holders(Query(params): Query<PaginationQuery>) -> impl IntoResponse {
-    let limit = params.limit.unwrap_or(20).min(50);
+    let limit = params.limit.unwrap_or(20).min(100); // Increased from 50 to 100
+    let offset = params.offset.unwrap_or(0);
 
     let (holders_result, count_result) = tokio::join!(
-        get_top_holders(Some(limit)),
+        get_top_holders(Some(limit), Some(offset)),
         get_holder_count()
     );
 
