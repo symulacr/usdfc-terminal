@@ -7,21 +7,15 @@
 # Stage 1: Dependency Cache Layer
 # Compiles workspace dependencies separately for better Docker layer caching
 # -----------------------------------------------------------------------------
-FROM rust:1.85-slim-bookworm AS deps
+FROM rust:1.85-bookworm AS deps
 
 # Install Rust nightly (needed for Leptos)
 RUN rustup toolchain install nightly && rustup default nightly
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    pkg-config \
-    libssl-dev \
-    curl \
-    perl \
-    && rm -rf /var/lib/apt/lists/*
+# Note: rust:1.85-bookworm already includes build-essential, curl, pkg-config, and libssl-dev
+# No additional apt packages needed
 
 # Install WASM target for client-side compilation
 RUN rustup target add wasm32-unknown-unknown
@@ -49,7 +43,7 @@ RUN mkdir -p crates/core/src crates/api/src crates/backend/src crates/terminal/s
 # Use railway profile for faster CI builds
 RUN cargo build --profile railway -p usdfc-core && \
     cargo build --profile railway -p usdfc-api --features ssr && \
-    cargo build --profile railway -p usdfc-backend --features ssr
+    cargo build --profile railway -p usdfc-backend
 
 # -----------------------------------------------------------------------------
 # Stage 2: Application Build
