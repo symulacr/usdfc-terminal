@@ -240,8 +240,11 @@ impl BlockscoutClient {
         let mut next_page_params: Option<serde_json::Value> = None;
         let max_pages = ((total_items_needed + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE).max(1); // Ceiling division
 
+        tracing::info!("get_token_holders: limit={}, offset={}, total_needed={}, max_pages={}", limit, offset, total_items_needed, max_pages);
+
         // Fetch pages until we have enough items
         for page_num in 0..max_pages {
+            tracing::info!("Fetching page {}/{}", page_num + 1, max_pages);
             let mut url = format!("{}/tokens/{}/holders", self.base_url, token);
 
             // Add pagination params for pages after the first
@@ -303,8 +306,11 @@ impl BlockscoutClient {
             // Update pagination params for next iteration
             next_page_params = data.next_page_params.clone();
 
+            tracing::info!("After page {}: collected {} holders total, has_next_page={}", page_num + 1, all_fetched_holders.len(), next_page_params.is_some());
+
             // Stop if we have enough items or no more pages
             if all_fetched_holders.len() >= total_items_needed as usize || next_page_params.is_none() {
+                tracing::info!("Breaking: enough_items={}, no_more_pages={}", all_fetched_holders.len() >= total_items_needed as usize, next_page_params.is_none());
                 break;
             }
         }
@@ -313,11 +319,15 @@ impl BlockscoutClient {
         let start_idx = offset as usize;
         let end_idx = (start_idx + limit as usize).min(all_fetched_holders.len());
 
+        tracing::info!("Slicing: start={}, end={}, total_fetched={}", start_idx, end_idx, all_fetched_holders.len());
+
         if start_idx >= all_fetched_holders.len() {
             return Ok(Vec::new()); // Offset beyond available data
         }
 
-        Ok(all_fetched_holders[start_idx..end_idx].to_vec())
+        let result = all_fetched_holders[start_idx..end_idx].to_vec();
+        tracing::info!("Returning {} holders", result.len());
+        Ok(result)
     }
 
     /// Get token balance for a specific address
