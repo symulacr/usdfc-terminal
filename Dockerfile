@@ -73,16 +73,13 @@ RUN cargo leptos build --release -p usdfc-analytics-terminal \
 # Stage 3: Runtime
 # Minimal image with only the compiled binary and assets
 # -----------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --shell /bin/bash appuser
+# Note: debian:bookworm already includes ca-certificates and curl
+# Create app user
+RUN useradd --create-home --shell /bin/bash appuser
 
 # Copy the compiled binary (railway profile)
 COPY --from=builder /app/target/railway/usdfc-analytics-terminal /app/usdfc-analytics-terminal
