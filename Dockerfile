@@ -62,7 +62,9 @@ COPY public ./public
 
 # Build the application with railway profile
 # This reuses cached dependencies from previous layer
-RUN cargo leptos build --profile railway -p usdfc-analytics-terminal
+# Use --release with --bin-cargo-args to specify custom profile
+RUN cargo leptos build --release -p usdfc-analytics-terminal \
+    --bin-cargo-args="--profile=railway"
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime

@@ -67,7 +67,7 @@ pub fn Alerts() -> impl IntoView {
                                 }
                             }
 
-                            transactions.get().map(|res| {
+                            transactions.get().map(|res: Result<_, leptos::ServerFnError>| {
                                 match res {
                                     Ok(txs) => {
                                         let large_tx = txs

@@ -190,7 +190,7 @@ pub fn Dashboard() -> impl IntoView {
                             }>
                                 {move || {
                                     let ct = chart_type.get();
-                                    volumes.get().map(|res| {
+                                    volumes.get().map(|res: Result<_, leptos::ServerFnError>| {
                                         match res {
                                             Ok(data) => {
                                                 if data.is_empty() {
@@ -299,7 +299,7 @@ pub fn Dashboard() -> impl IntoView {
                                 </div>
                             }>
                                 {move || {
-                                    transactions.get().map(|res| {
+                                    transactions.get().map(|res: Result<_, leptos::ServerFnError>| {
                                         match res {
                                             Ok(txs) => {
                                                 if txs.is_empty() {

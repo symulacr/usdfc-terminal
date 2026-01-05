@@ -36,7 +36,7 @@ pub fn SankeyCharts() -> impl IntoView {
                     </div>
                 }>
                     {move || {
-                        recent_tx.get().map(|res| {
+                        recent_tx.get().map(|res: Result<_, leptos::ServerFnError>| {
                             match res {
                                 Ok(txs) => {
                                     if txs.is_empty() {
@@ -121,7 +121,7 @@ pub fn SankeyCharts() -> impl IntoView {
             <div class="grid-3" style="margin-top: 24px;">
                 <Suspense fallback=move || view! { <div class="card"><div class="skeleton" style="height: 80px;"></div></div> }>
                     {move || {
-                        recent_tx.get().map(|res| {
+                        recent_tx.get().map(|res: Result<_, leptos::ServerFnError>| {
                             match res {
                                 Ok(txs) => {
                                     let total: f64 = txs.iter()
