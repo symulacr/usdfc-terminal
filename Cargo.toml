@@ -76,8 +76,8 @@ web-sys = { version = "0.3", features = [
 ], optional = true }
 js-sys = { version = "0.3", optional = true }
 
-# HTTP client
-reqwest = { version = "0.11", features = ["json"], optional = true }
+# HTTP client (optimized with rustls instead of native-tls)
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"], optional = true }
 gloo-net = { version = "0.5", optional = true }
 
 # Async traits
@@ -101,17 +101,10 @@ thiserror = "1.0"
 
 # SQLite persistence (SSR only)
 rusqlite = { version = "0.31", features = ["bundled"], optional = true }
-hex = { version = "0.4", optional = true }
 fvm_shared = { version = "4", optional = true }
-
-# Blockchain interaction (SSR only - doesn't work on WASM)
-ethers = { version = "2.0", default-features = false, features = ["legacy"], optional = true }
 
 # Environment variables
 dotenvy = "0.15"
-
-# GraphQL client
-graphql_client = { version = "0.14", optional = true }
 
 http = { version = "1", optional = true }
 tracing = { version = "0.1", optional = true }
@@ -143,11 +136,7 @@ ssr = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:reqwest",
-    "dep:graphql_client",
-    "dep:inventory",
-    "dep:hex",
     "dep:fvm_shared",
-    "dep:ethers",
     "dep:futures",
     "dep:rusqlite",
     "dep:governor"
@@ -194,9 +183,14 @@ opt-level = 'z'
 lto = true
 strip = true
 
-# Security patches for transitive dependencies
-# RUSTSEC-2025-0009: ring 0.16.20 has AES overflow vulnerability
-# Note: Cannot patch ring directly as jsonwebtoken 8.x requires ring 0.16.x API
-# This vulnerability is in ethers -> ethers-providers -> jsonwebtoken -> ring
-# The ethers ecosystem (2.0.14) hasn't updated to jsonwebtoken 9.x yet
-# Consider migrating to alloy-rs when ready: https://github.com/alloy-rs/alloy
+# Optimized profile for Railway CI builds
+# Balances build speed vs binary size for faster deployments
+[profile.railway]
+inherits = "release"
+lto = "thin"           # Thin LTO instead of full (2-3x faster linking)
+codegen-units = 4      # Parallel codegen for faster builds
+opt-level = 2          # O2 instead of Oz (faster compile, similar size)
+strip = true
+panic = "abort"
+debug = false          # Disable debug info (saves 1-2 min in CI)
+incremental = false    # Disable incremental (not useful in CI)

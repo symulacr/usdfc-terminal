@@ -1,13 +1,13 @@
 # =============================================================================
-# USDFC Analytics Terminal - Production Dockerfile
-# Multi-stage build for Leptos SSR application
+# USDFC Analytics Terminal - Optimized Production Dockerfile
+# Multi-stage build with dependency caching for faster CI builds
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Builder
-# Compiles the Rust application and WASM client
+# Stage 1: Dependency Cache Layer
+# Compiles dependencies separately for better Docker layer caching
 # -----------------------------------------------------------------------------
-FROM rustlang/rust:nightly-slim AS builder
+FROM rustlang/rust:nightly-slim AS deps
 
 WORKDIR /app
 
@@ -23,23 +23,41 @@ RUN apt-get update && apt-get install -y \
 # Install WASM target for client-side compilation
 RUN rustup target add wasm32-unknown-unknown
 
-# Install cargo-leptos build tool (latest version, compatible with nightly and wasm-bindgen 0.2.106)
-RUN cargo install --locked cargo-leptos
+# Install cargo-leptos from pre-built binary (NOT source - saves ~3 minutes)
+RUN curl -L https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/cargo-leptos-x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/cargo/bin
 
-# Cache bust for rebuilds - updated 2026-01-05 17:30 UTC
-ARG CACHE_BUST=2026-01-05-17:30-cursor-pagination
-RUN echo "Cache bust: ${CACHE_BUST}"
-
-# Copy source files
+# Copy only dependency files first for better caching
 COPY Cargo.toml Cargo.lock ./
+
+# Create dummy main.rs and lib.rs to build dependencies
+RUN mkdir -p src && \
+    echo "fn main() {}" > src/main.rs && \
+    echo "pub fn dummy() {}" > src/lib.rs
+
+# Build dependencies only (cached layer - only rebuilds when Cargo.toml changes)
+# Use railway profile for faster CI builds
+RUN cargo build --profile railway --features ssr --lib
+
+# -----------------------------------------------------------------------------
+# Stage 2: Application Build
+# Builds actual application code using cached dependencies
+# -----------------------------------------------------------------------------
+FROM deps AS builder
+
+# Remove dummy files
+RUN rm -rf src
+
+# Copy real source code
 COPY src ./src
 COPY public ./public
 
-# Build the release binary and WASM client
-RUN cargo leptos build --release
+# Build the application with railway profile
+# This uses cached dependencies from previous layer
+RUN cargo leptos build --profile railway
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime
+# Stage 3: Runtime
 # Minimal image with only the compiled binary and assets
 # -----------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
@@ -53,13 +71,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /bin/bash appuser
 
-# Copy the compiled binary
-COPY --from=builder /app/target/release/usdfc-analytics-terminal /app/usdfc-analytics-terminal
+# Copy the compiled binary (railway profile builds to target/railway/)
+COPY --from=builder /app/target/railway/usdfc-analytics-terminal /app/usdfc-analytics-terminal
 
 # Copy the site assets (WASM, CSS, JS, static files)
 COPY --from=builder /app/target/site /app/site
 
-# Copy public assets if they exist separately
+# Copy public assets
 COPY --from=builder /app/public /app/public
 
 # Copy Cargo.toml for Leptos configuration
@@ -90,7 +108,7 @@ ENV DATABASE_PATH=/app/data/analytics.db
 
 # Health check endpoint (uses PORT from environment)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
 
 # Run the application
 CMD ["/app/usdfc-analytics-terminal"]
