@@ -22,7 +22,9 @@ RUN rustup target add wasm32-unknown-unknown
 
 # Install cargo-leptos from pre-built binary (saves ~3 minutes)
 RUN curl -L https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/cargo-leptos-x86_64-unknown-linux-gnu.tar.gz \
-    | tar -xz -C /usr/local/cargo/bin
+    | tar -xz -C /tmp && \
+    mv /tmp/cargo-leptos-x86_64-unknown-linux-gnu/cargo-leptos /usr/local/cargo/bin/ && \
+    rm -rf /tmp/cargo-leptos-x86_64-unknown-linux-gnu
 
 # Copy workspace manifest and crate manifests for dependency caching
 COPY Cargo.toml Cargo.lock ./
