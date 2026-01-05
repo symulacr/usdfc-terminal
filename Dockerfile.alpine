@@ -1,0 +1,72 @@
+# =============================================================================
+# USDFC Analytics Terminal - Alpine-based Dockerfile
+# Workaround for Debian mirror issues
+# =============================================================================
+
+# Build stage with Rust
+FROM rust:1.85-alpine AS builder
+
+# Install build dependencies (Alpine uses apk, not apt)
+RUN apk add --no-cache \
+    musl-dev \
+    pkgconfig \
+    openssl-dev \
+    openssl-libs-static \
+    perl \
+    make \
+    bash
+
+# Install Rust nightly
+RUN rustup toolchain install nightly && rustup default nightly
+
+# Install WASM target
+RUN rustup target add wasm32-unknown-unknown
+
+WORKDIR /app
+
+# Install cargo-leptos
+RUN wget https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/cargo-leptos-x86_64-unknown-linux-musl.tar.gz && \
+    tar -xzf cargo-leptos-x86_64-unknown-linux-musl.tar.gz && \
+    mv cargo-leptos-x86_64-unknown-linux-musl/cargo-leptos /usr/local/cargo/bin/ && \
+    rm -rf cargo-leptos-*
+
+# Copy source
+COPY . .
+
+# Build with railway profile
+RUN cargo leptos build --release -p usdfc-analytics-terminal --bin-cargo-args="--profile=railway"
+
+# Runtime stage
+FROM alpine:latest AS runtime
+
+RUN apk add --no-cache libgcc
+
+WORKDIR /app
+
+# Create app user
+RUN adduser -D -s /bin/sh appuser
+
+# Copy binary and assets
+COPY --from=builder /app/target/railway/usdfc-analytics-terminal /app/usdfc-analytics-terminal
+COPY --from=builder /app/target/site /app/site
+COPY --from=builder /app/public /app/public
+COPY --from=builder /app/Cargo.toml /app/Cargo.toml
+COPY --from=builder /app/crates/terminal/Cargo.toml /app/crates/terminal/Cargo.toml
+
+# Create data directory
+RUN mkdir -p /app/data /app/crates/terminal && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE ${PORT:-3000}
+
+ENV LEPTOS_OUTPUT_NAME="usdfc-terminal"
+ENV LEPTOS_SITE_ROOT="site"
+ENV LEPTOS_SITE_PKG_DIR="pkg"
+ENV LEPTOS_ENV="PROD"
+ENV RUST_LOG="info"
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV DATABASE_PATH=/app/data/analytics.db
+
+CMD ["/app/usdfc-analytics-terminal"]
