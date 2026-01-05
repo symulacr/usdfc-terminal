@@ -30,12 +30,14 @@ RUN curl -L https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/c
 # Copy workspace manifest and crate manifests for dependency caching
 COPY Cargo.toml Cargo.lock ./
 COPY crates/core/Cargo.toml crates/core/Cargo.toml
+COPY crates/api/Cargo.toml crates/api/Cargo.toml
 COPY crates/backend/Cargo.toml crates/backend/Cargo.toml
 COPY crates/terminal/Cargo.toml crates/terminal/Cargo.toml
 
 # Create dummy source files to build dependencies only
-RUN mkdir -p crates/core/src crates/backend/src crates/terminal/src && \
+RUN mkdir -p crates/core/src crates/api/src crates/backend/src crates/terminal/src && \
     echo "pub fn dummy() {}" > crates/core/src/lib.rs && \
+    echo "pub fn dummy() {}" > crates/api/src/lib.rs && \
     echo "pub fn dummy() {}" > crates/backend/src/lib.rs && \
     echo "pub fn dummy() {}" > crates/terminal/src/lib.rs && \
     echo "fn main() {}" > crates/terminal/src/main.rs
@@ -43,6 +45,7 @@ RUN mkdir -p crates/core/src crates/backend/src crates/terminal/src && \
 # Build dependencies only (cached layer - rebuilds only when Cargo.toml changes)
 # Use railway profile for faster CI builds
 RUN cargo build --profile railway -p usdfc-core && \
+    cargo build --profile railway -p usdfc-api --features ssr && \
     cargo build --profile railway -p usdfc-backend --features ssr
 
 # -----------------------------------------------------------------------------
@@ -56,6 +59,7 @@ RUN rm -rf crates/*/src
 
 # Copy real source code
 COPY crates/core/src crates/core/src
+COPY crates/api/src crates/api/src
 COPY crates/backend/src crates/backend/src
 COPY crates/terminal/src crates/terminal/src
 COPY public ./public
