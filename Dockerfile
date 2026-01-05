@@ -7,7 +7,7 @@
 # Stage 1: Builder
 # Compiles the Rust application and WASM client
 # -----------------------------------------------------------------------------
-FROM rust:1.83-slim AS builder
+FROM rustlang/rust:nightly-slim AS builder
 
 WORKDIR /app
 
@@ -23,8 +23,12 @@ RUN apt-get update && apt-get install -y \
 # Install WASM target for client-side compilation
 RUN rustup target add wasm32-unknown-unknown
 
-# Install cargo-leptos build tool
+# Install cargo-leptos build tool (latest version, compatible with nightly and wasm-bindgen 0.2.106)
 RUN cargo install --locked cargo-leptos
+
+# Cache bust for rebuilds - updated 2026-01-05 16:00 UTC
+ARG CACHE_BUST=2026-01-05-16:00
+RUN echo "Cache bust: ${CACHE_BUST}"
 
 # Copy source files
 COPY Cargo.toml Cargo.lock ./
@@ -58,30 +62,35 @@ COPY --from=builder /app/target/site /app/site
 # Copy public assets if they exist separately
 COPY --from=builder /app/public /app/public
 
-# Set ownership to non-root user
-RUN chown -R appuser:appuser /app
+# Copy Cargo.toml for Leptos configuration
+COPY --from=builder /app/Cargo.toml /app/Cargo.toml
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
 
 # Switch to non-root user for security
 USER appuser
 
-# Expose the application port
-EXPOSE 3000
+# Expose the application port (Railway sets this dynamically)
+EXPOSE ${PORT:-3000}
 
 # Environment variables for Leptos
 ENV LEPTOS_OUTPUT_NAME="usdfc-terminal"
 ENV LEPTOS_SITE_ROOT="site"
 ENV LEPTOS_SITE_PKG_DIR="pkg"
-ENV LEPTOS_SITE_ADDR="0.0.0.0:3000"
 ENV LEPTOS_ENV="PROD"
 ENV RUST_LOG="info"
 
-# Legacy environment variables (for compatibility)
+# Server binding (Railway sets PORT automatically)
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-# Health check endpoint
+# SQLite database path (for Railway Volume)
+ENV DATABASE_PATH=/app/data/analytics.db
+
+# Health check endpoint (uses PORT from environment)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/v1/health || exit 1
+    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
 
 # Run the application
 CMD ["/app/usdfc-analytics-terminal"]
