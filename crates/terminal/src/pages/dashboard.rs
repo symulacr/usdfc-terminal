@@ -10,7 +10,7 @@ use leptos::*;
 use crate::components::controls::{TimeRange, TimeRangeSelector, ChartTypeSelector, StatusLevel};
 use crate::components::{MetricRowSkeleton, ActivityItemSkeleton, ChartSkeleton};
 use usdfc_core::config::config;
-use usdfc_backend::server_fn::{
+use usdfc_api::{
     get_protocol_metrics, get_usdfc_price_data, get_daily_volumes,
     get_recent_transactions, check_api_health,
 };

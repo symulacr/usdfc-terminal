@@ -69,9 +69,10 @@ impl<T: Clone> Cache<T> {
 pub mod caches {
     use super::*;
     use once_cell::sync::Lazy;
-    use usdfc_core::types::{ProtocolMetrics, Trove, Transaction, ChartDataResponse};
-    use crate::server_fn::{
-        AddressInfo, USDFCPriceData, LendingMarketData, TokenHolderInfo, DailyVolumeData, OrderBookData, LendingTradeData,
+    use usdfc_core::types::{
+        ProtocolMetrics, Trove, Transaction, ChartDataResponse,
+        AddressInfo, USDFCPriceData, LendingMarketData, TokenHolderInfo,
+        DailyVolumeData, OrderBookData, LendingTradeData,
     };
 
     /// Cache for protocol metrics (15 second TTL - updates frequently)

@@ -1,5 +1,5 @@
 use leptos::*;
-use usdfc_backend::server_fn::{get_recent_transactions, get_daily_volumes};
+use usdfc_api::{get_recent_transactions, get_daily_volumes};
 use usdfc_core::format::{format_amount, format_timestamp, shorten_hash};
 use usdfc_core::types::Transaction;
 use std::collections::HashMap;

@@ -1,0 +1,40 @@
+[package]
+name = "usdfc-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# Internal dependencies
+usdfc-core = { path = "../core" }
+
+# Leptos for server function macros
+leptos = { workspace = true }
+
+# Serialization (needed for server function params/returns)
+serde = { workspace = true, features = ["derive"] }
+rust_decimal = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, features = ["serde"] }
+
+# Backend implementations (only for SSR)
+usdfc-backend = { path = "../backend", optional = true }
+tokio = { workspace = true, optional = true, features = ["macros"] }
+tracing = { version = "0.1", optional = true }
+
+[features]
+default = []
+
+ssr = [
+    "dep:usdfc-backend",
+    "dep:tokio",
+    "dep:tracing",
+    "leptos/ssr",
+]
+
+hydrate = [
+    "leptos/hydrate",
+]

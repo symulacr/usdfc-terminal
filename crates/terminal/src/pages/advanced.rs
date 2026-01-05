@@ -4,7 +4,7 @@
 
 use leptos::*;
 use usdfc_core::config::config;
-use usdfc_backend::server_fn::{
+use usdfc_api::{
     get_protocol_metrics, get_usdfc_price_data,
     get_recent_transactions, get_lending_markets, get_holder_count,
     check_api_health, get_advanced_chart_data,

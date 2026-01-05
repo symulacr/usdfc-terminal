@@ -1,5 +1,5 @@
 use leptos::*;
-use usdfc_backend::server_fn::{get_protocol_metrics, get_recent_transactions};
+use usdfc_api::{get_protocol_metrics, get_recent_transactions};
 use usdfc_core::format::{format_amount, shorten_hash};
 
 #[component]

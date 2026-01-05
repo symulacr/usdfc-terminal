@@ -2,7 +2,7 @@
 
 use leptos::*;
 use usdfc_core::types::{ChartResolution, ChartLookback, ChartMetric, ChartType, ChartDataResponse};
-use usdfc_backend::server_fn::{get_advanced_chart_data, get_wallet_analytics, WalletAnalyticsResponse};
+use usdfc_api::{get_advanced_chart_data, get_wallet_analytics, WalletAnalyticsResponse};
 use super::{ChartHeader, ChartCanvas, ChartLegend};
 
 /// Main Advanced Chart container component

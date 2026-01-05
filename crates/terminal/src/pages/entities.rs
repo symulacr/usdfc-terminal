@@ -1,6 +1,6 @@
 use leptos::*;
 use crate::components::Pagination;
-use usdfc_backend::server_fn::{get_top_holders, get_usdfc_price_data};
+use usdfc_api::{get_top_holders, get_usdfc_price_data};
 use usdfc_core::format::{format_amount, shorten_hash, format_usd_compact};
 use usdfc_core::config::config;
 

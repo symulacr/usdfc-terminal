@@ -1,6 +1,6 @@
 use leptos::*;
 use crate::components::gauge::GaugeChart;
-use usdfc_backend::server_fn::{get_protocol_metrics, get_troves};
+use usdfc_api::{get_protocol_metrics, get_troves};
 use usdfc_core::format::{format_value, format_fil, format_usdfc};
 
 #[component]

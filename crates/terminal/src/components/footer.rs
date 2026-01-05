@@ -1,5 +1,5 @@
 use leptos::*;
-use usdfc_backend::server_fn::check_api_health;
+use usdfc_api::check_api_health;
 
 #[component]
 pub fn Footer() -> impl IntoView {

@@ -654,7 +654,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.111",
 ]
 
 [[package]]
@@ -1106,6 +1106,12 @@ checksum = "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
 dependencies = [
  "hashbrown 0.14.5",
 ]
+
+[[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "html-escape"
@@ -3471,11 +3477,26 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "usdfc-api",
  "usdfc-backend",
  "usdfc-core",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "usdfc-api"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "leptos",
+ "rust_decimal",
+ "serde",
+ "tokio",
+ "tracing",
+ "usdfc-backend",
+ "usdfc-core",
 ]
 
 [[package]]
@@ -3489,6 +3510,7 @@ dependencies = [
  "futures",
  "fvm_shared",
  "governor",
+ "hex",
  "http 1.4.0",
  "leptos",
  "leptos_axum",

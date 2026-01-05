@@ -1,11 +1,8 @@
-#[cfg(feature = "ssr")]
 use fvm_shared::address::{Address, Payload, Protocol};
-#[cfg(feature = "ssr")]
 use std::str::FromStr;
 
 const EAM_NAMESPACE: u64 = 32;
 
-#[cfg(feature = "ssr")]
 pub fn evm_to_f4(evm: &str) -> Result<String, String> {
     let hex = evm.strip_prefix("0x").ok_or_else(|| "missing 0x prefix".to_string())?;
     let bytes = hex::decode(hex).map_err(|e| format!("invalid hex: {}", e))?;
@@ -17,7 +14,6 @@ pub fn evm_to_f4(evm: &str) -> Result<String, String> {
     Ok(addr.to_string())
 }
 
-#[cfg(feature = "ssr")]
 pub fn f4_to_evm(f4: &str) -> Result<String, String> {
     let addr = Address::from_str(f4).map_err(|e| format!("invalid address: {}", e))?;
     if addr.protocol() != Protocol::Delegated {
@@ -34,7 +30,6 @@ pub fn f4_to_evm(f4: &str) -> Result<String, String> {
     }
 }
 
-#[cfg(feature = "ssr")]
 pub fn normalize_for_blockscout(input: &str) -> Result<String, String> {
     if input.starts_with("0x") {
         return Ok(input.to_string());

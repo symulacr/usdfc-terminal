@@ -1,7 +1,7 @@
 use leptos::*;
 use crate::components::icons::*;
 use crate::components::PaginationWithSize;
-use usdfc_backend::server_fn::{get_recent_transactions, get_address_info};
+use usdfc_api::{get_recent_transactions, get_address_info};
 use usdfc_core::format::{format_timestamp, format_timestamp_full, format_balance, shorten_hash, format_volume, format_amount, decimal_to_f64, format_count};
 use usdfc_core::types::Transaction;
 

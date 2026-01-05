@@ -1,5 +1,5 @@
 use leptos::*;
-use usdfc_backend::server_fn::get_recent_transactions;
+use usdfc_api::get_recent_transactions;
 use usdfc_core::format::format_count;
 use std::collections::HashMap;
 

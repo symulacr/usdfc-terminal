@@ -1,6 +1,6 @@
 use leptos::*;
 use rust_decimal::prelude::ToPrimitive;
-use usdfc_backend::server_fn::{get_protocol_metrics, get_recent_transactions, get_holder_count, get_top_holders};
+use usdfc_api::{get_protocol_metrics, get_recent_transactions, get_holder_count, get_top_holders};
 use usdfc_core::format::{format_value, format_amount, format_timestamp, shorten_hash};
 
 #[component]

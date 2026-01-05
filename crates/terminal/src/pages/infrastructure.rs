@@ -5,7 +5,7 @@
 
 use leptos::*;
 use crate::components::tabs::{TabNav, TabContent, Tab};
-use usdfc_backend::server_fn::check_api_health;
+use usdfc_api::check_api_health;
 
 #[component]
 pub fn Infrastructure() -> impl IntoView {

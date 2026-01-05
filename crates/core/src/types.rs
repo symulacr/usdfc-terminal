@@ -1244,3 +1244,152 @@ pub struct OperationsData {
     pub count: usize,
     pub breakdown: std::collections::HashMap<String, usize>,
 }
+
+// ============================================================================
+// Server Function Data Types
+// ============================================================================
+
+/// Lending market data from subgraph
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LendingMarketData {
+    pub maturity: String,
+    pub currency: String,
+    pub lend_unit_price: String,
+    pub borrow_unit_price: String,
+    pub volume: String,
+    pub is_active: bool,
+    pub lend_apr: f64,
+    pub borrow_apr: f64,
+}
+
+/// Daily volume data point for charts
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DailyVolumeData {
+    pub day: String,
+    pub volume: f64,
+    pub timestamp: i64,
+    pub currency: String,
+}
+
+/// Address info response
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AddressInfo {
+    pub address: String,
+    pub usdfc_balance: String,
+    pub transfer_count: u64,
+    pub first_seen: String,
+    pub address_type: String,
+}
+
+impl AddressInfo {
+    /// Create a default AddressInfo when API fails
+    pub fn default_for(address: &str) -> Self {
+        Self {
+            address: address.to_string(),
+            usdfc_balance: "0".to_string(),
+            transfer_count: 0,
+            first_seen: "Unknown".to_string(),
+            address_type: "unknown".to_string(),
+        }
+    }
+}
+
+/// Normalized address info for display and API routing
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NormalizedAddress {
+    pub input: String,
+    pub kind: String,
+    pub evm: Option<String>,
+    pub f4: Option<String>,
+    pub blockscout: Option<String>,
+}
+
+/// Token holder info
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TokenHolderInfo {
+    pub address: String,
+    pub balance: Decimal,
+}
+
+/// USDFC price and market data from DEX
+/// All prices use Option<f64> - None means data unavailable (safer than fake fallbacks)
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct USDFCPriceData {
+    /// Current price in USD - None if API failed (NEVER fallback to 1.0)
+    pub price_usd: Option<f64>,
+    pub price_change_24h: Option<f64>,
+    pub volume_24h: Option<f64>,
+    pub liquidity_usd: Option<f64>,
+}
+
+/// API health status for all data sources
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ApiHealthStatus {
+    pub rpc_ok: bool,
+    pub blockscout_ok: bool,
+    pub subgraph_ok: bool,
+    /// GeckoTerminal DEX API health
+    pub gecko_ok: bool,
+    /// Historical SQLite database health
+    pub database_ok: bool,
+    pub timestamp: i64,
+}
+
+/// Order book data for display
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OrderBookData {
+    pub currency: String,
+    pub maturity: Option<String>,
+    pub lend_orders: Vec<OrderData>,
+    pub borrow_orders: Vec<OrderData>,
+    pub best_lend_price: Option<f64>,
+    pub best_borrow_price: Option<f64>,
+    pub spread_bps: Option<f64>,
+}
+
+/// Single order for display
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OrderData {
+    pub id: String,
+    pub side: String,
+    pub amount: f64,
+    pub filled: f64,
+    pub price: f64,
+    pub apr: f64,
+    pub user: Option<String>,
+    pub created_at: String,
+}
+
+/// Lending trade for display
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LendingTradeData {
+    pub id: String,
+    pub currency: String,
+    pub maturity: String,
+    pub side: String,
+    pub amount: f64,
+    pub price: f64,
+    pub apr: f64,
+    pub timestamp: i64,
+}
+
+/// Wallet analytics bucket for time-series data
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletBucket {
+    pub timestamp: i64,
+    pub volume_in: f64,
+    pub volume_out: f64,
+    pub count_in: u64,
+    pub count_out: u64,
+}
+
+/// Wallet analytics response
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WalletAnalyticsResponse {
+    pub address: String,
+    pub buckets: Vec<WalletBucket>,
+    pub total_in: f64,
+    pub total_out: f64,
+    pub first_seen: Option<String>,
+    pub last_active: Option<String>,
+}

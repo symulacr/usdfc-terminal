@@ -4,7 +4,7 @@
 
 use leptos::*;
 use crate::app::{AppState, NetworkStatus};
-use usdfc_backend::server_fn::{get_usdfc_price_data, get_holder_count, get_protocol_metrics};
+use usdfc_api::{get_usdfc_price_data, get_holder_count, get_protocol_metrics};
 use rust_decimal::prelude::ToPrimitive;
 
 #[component]

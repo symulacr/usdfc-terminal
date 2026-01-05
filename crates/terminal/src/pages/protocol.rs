@@ -9,7 +9,7 @@ use crate::components::icons::*;
 use crate::components::gauge::GaugeChart;
 use usdfc_core::config::config;
 use crate::global_metrics::use_global_metrics;
-use usdfc_backend::server_fn::{get_troves, get_top_holders, get_recent_transactions, get_stability_pool_transfers};
+use usdfc_api::{get_troves, get_top_holders, get_recent_transactions, get_stability_pool_transfers};
 use usdfc_core::format::{format_usd, format_fil, format_usdfc, format_amount, format_timestamp, shorten_hash, format_volume, decimal_to_f64};
 use usdfc_core::types::TransactionType;
 

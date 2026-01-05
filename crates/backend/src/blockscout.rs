@@ -529,7 +529,7 @@ fn parse_token_amount(value: &str, decimals: &str) -> ApiResult<Decimal> {
 impl BlockscoutClient {
     /// Get USDFC-specific info for an address
     /// Uses both REST and GraphQL APIs for comprehensive data
-    pub async fn get_address_usdfc_info(&self, address: &str) -> ApiResult<crate::server_fn::AddressInfo> {
+    pub async fn get_address_usdfc_info(&self, address: &str) -> ApiResult<usdfc_core::types::AddressInfo> {
         // Fetch token balances and address info via GraphQL in parallel
         let (balances_result, gql_addr_result) = tokio::join!(
             self.get_token_balances_rest(address),
@@ -615,7 +615,7 @@ impl BlockscoutClient {
 
         let addr_type = if is_contract { "Contract" } else { "EOA" }.to_string();
 
-        Ok(crate::server_fn::AddressInfo {
+        Ok(usdfc_core::types::AddressInfo {
             address: address.to_string(),
             usdfc_balance: format!("{:.2}", usdfc_balance),
             transfer_count,

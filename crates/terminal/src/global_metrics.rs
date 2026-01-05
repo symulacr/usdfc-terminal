@@ -4,7 +4,7 @@
 //! Reduces duplicate API calls by centralizing data fetching.
 
 use leptos::*;
-use usdfc_backend::server_fn::{
+use usdfc_api::{
     get_protocol_metrics, get_usdfc_price_data, get_holder_count,
     USDFCPriceData,
 };

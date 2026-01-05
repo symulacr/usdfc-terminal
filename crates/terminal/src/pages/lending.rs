@@ -1,7 +1,7 @@
 use leptos::*;
 use crate::components::icons::*;
 use crate::components::charts::BarChart;
-use usdfc_backend::server_fn::{get_lending_markets, get_order_book, get_recent_lending_trades, get_daily_volumes};
+use usdfc_api::{get_lending_markets, get_order_book, get_recent_lending_trades, get_daily_volumes};
 use usdfc_core::format::{shorten_hash, format_date};
 use std::collections::HashMap;
 

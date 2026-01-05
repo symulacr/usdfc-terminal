@@ -7,7 +7,7 @@ use leptos::*;
 use crate::components::tabs::{TabNav, TabContent, Tab};
 use crate::components::icons::*;
 use usdfc_core::config::config;
-use usdfc_backend::server_fn::get_recent_transactions;
+use usdfc_api::get_recent_transactions;
 use crate::global_metrics::use_global_metrics;
 use usdfc_core::format::{format_amount, shorten_hash, decimal_to_f64};
 

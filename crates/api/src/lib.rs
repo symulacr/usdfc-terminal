@@ -1,16 +1,15 @@
-//! Server Functions for USDFC Analytics Terminal
+//! USDFC API - Server Function Declarations
 //!
-//! These functions run on the server and are callable from the client.
-//! All data comes from real APIs - no mock data, no fallbacks.
+//! This crate contains server function signatures with #[server] macros.
+//! Implementations are included in #[cfg(feature = "ssr")] blocks.
+//! This crate is WASM-compatible when built without ssr feature.
 
 use leptos::*;
 use leptos::server_fn::error::NoCustomError;
-use usdfc_core::types::*;
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 
-// Re-export chart types for server functions
-pub use usdfc_core::types::{ChartResolution, ChartLookback, ChartDataResponse, TVCandle};
+// Re-export all types from core for convenience
+pub use usdfc_core::types::*;
 
 /// Type alias for server function errors with default error type
 type SfnError = ServerFnError<NoCustomError>;
@@ -25,9 +24,8 @@ type SfnError = ServerFnError<NoCustomError>;
 pub async fn get_protocol_metrics() -> Result<ProtocolMetrics, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::rpc::RpcClient;
-use usdfc_core::types::*;
-        use crate::cache::caches;
+        use usdfc_backend::rpc::RpcClient;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         if let Some(cached) = caches::PROTOCOL_METRICS.get("default") {
@@ -52,7 +50,6 @@ use usdfc_core::types::*;
         let stability_pool_balance = stability_pool_balance.map_err(|e| SfnError::ServerError(e.to_string()))?;
 
         // Calculate actual circulating supply: total supply minus stability pool deposits
-        // USDFC in the stability pool is locked and not actively circulating
         let circulating_supply = total_supply - stability_pool_balance;
 
         let metrics = ProtocolMetrics {
@@ -62,7 +59,7 @@ use usdfc_core::types::*;
             active_troves,
             tcr,
             stability_pool_balance,
-            treasury_balance: stability_pool_balance, // Non-circulating = locked in stability pool
+            treasury_balance: stability_pool_balance,
         };
 
         // Store in cache
@@ -77,10 +74,6 @@ use usdfc_core::types::*;
     }
 }
 
-// ============================================================================
-// Transactions
-// ============================================================================
-
 /// Get recent transactions from Blockscout
 #[server(GetRecentTransactions, "/api")]
 pub async fn get_recent_transactions(limit: Option<u32>) -> Result<Vec<Transaction>, ServerFnError> {
@@ -88,8 +81,8 @@ pub async fn get_recent_transactions(limit: Option<u32>) -> Result<Vec<Transacti
 
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
-        use crate::cache::caches;
+        use usdfc_backend::blockscout::BlockscoutClient;
+        use usdfc_backend::cache::caches;
 
         // Check cache first (10s TTL for recent transactions)
         let cache_key = format!("recent_tx_{}", limit);
@@ -124,8 +117,8 @@ pub async fn get_recent_transactions(limit: Option<u32>) -> Result<Vec<Transacti
 pub async fn get_troves(limit: Option<u32>, _offset: Option<u32>) -> Result<Vec<Trove>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::rpc::RpcClient;
-        use crate::cache::caches;
+        use usdfc_backend::rpc::RpcClient;
+        use usdfc_backend::cache::caches;
 
         let limit = limit.unwrap_or(100).min(500); // Default 100, max 500
         let cache_key = format!("troves_{}", limit);
@@ -211,9 +204,9 @@ pub async fn get_troves(limit: Option<u32>, _offset: Option<u32>) -> Result<Vec<
 pub async fn get_lending_markets() -> Result<Vec<LendingMarketData>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::subgraph::SubgraphClient;
-        use crate::subgraph::unit_price_to_apr;
-        use crate::cache::caches;
+        use usdfc_backend::subgraph::SubgraphClient;
+        use usdfc_backend::subgraph::unit_price_to_apr;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         if let Some(cached) = caches::LENDING_MARKETS.get("default") {
@@ -298,8 +291,8 @@ pub async fn get_daily_volumes(days: Option<i32>) -> Result<Vec<DailyVolumeData>
 
     #[cfg(feature = "ssr")]
     {
-        use crate::subgraph::SubgraphClient;
-        use crate::cache::caches;
+        use usdfc_backend::subgraph::SubgraphClient;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         let cache_key = format!("daily_vol_{}", days);
@@ -349,9 +342,9 @@ pub async fn get_address_info(address: String) -> Result<AddressInfo, ServerFnEr
 
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
-        use crate::address_conv::normalize_for_blockscout;
-        use crate::cache::caches;
+        use usdfc_backend::blockscout::BlockscoutClient;
+        use usdfc_backend::address_conv::normalize_for_blockscout;
+        use usdfc_backend::cache::caches;
 
         let normalized = normalize_for_blockscout(&address)
             .map_err(|e| {
@@ -392,7 +385,7 @@ pub async fn get_normalized_address(address: String) -> Result<NormalizedAddress
 
     #[cfg(feature = "ssr")]
     {
-        use crate::address_conv::{evm_to_f4, f4_to_evm};
+        use usdfc_backend::address_conv::{evm_to_f4, f4_to_evm};
 
         if address.starts_with("0x") {
             let f4 = evm_to_f4(&address).map_err(SfnError::ServerError)?;
@@ -443,9 +436,9 @@ pub async fn get_normalized_address(address: String) -> Result<NormalizedAddress
 pub async fn get_top_holders(limit: Option<u32>, offset: Option<u32>) -> Result<Vec<TokenHolderInfo>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
         use usdfc_core::config::config;
-        use crate::cache::caches;
+        use usdfc_backend::cache::caches;
 
         let _offset = offset; // Ignored for cursor-based API
         let cache_key = format!("holders_first_page");
@@ -490,9 +483,9 @@ pub async fn get_top_holders(limit: Option<u32>, offset: Option<u32>) -> Result<
 pub async fn get_stability_pool_transfers(limit: Option<u32>) -> Result<Vec<Transaction>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
         use usdfc_core::config::config;
-        use crate::cache::caches;
+        use usdfc_backend::cache::caches;
 
         let limit = limit.ok_or_else(|| SfnError::ServerError("limit is required".to_string()))?;
 
@@ -524,6 +517,7 @@ pub async fn get_stability_pool_transfers(limit: Option<u32>) -> Result<Vec<Tran
 // Price Data (GeckoTerminal)
 // ============================================================================
 
+/// USDFC price and market data from DEX
 
 /// Get USDFC price data from GeckoTerminal
 /// Cached for 30 seconds to reduce API load
@@ -531,9 +525,9 @@ pub async fn get_stability_pool_transfers(limit: Option<u32>) -> Result<Vec<Tran
 pub async fn get_usdfc_price_data() -> Result<USDFCPriceData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::cache::caches;
+        use usdfc_backend::cache::caches;
         use usdfc_core::config::config;
-        use crate::gecko::GeckoClient;
+        use usdfc_backend::gecko::GeckoClient;
 
         // Check cache first
         if let Some(cached) = caches::USDFC_PRICE.get("default") {
@@ -594,12 +588,12 @@ pub async fn get_usdfc_price_data() -> Result<USDFCPriceData, ServerFnError> {
 pub async fn check_api_health() -> Result<ApiHealthStatus, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
         use usdfc_core::config::config;
-        use crate::gecko::GeckoClient;
-        use crate::historical;
-        use crate::rpc::RpcClient;
-        use crate::subgraph::SubgraphClient;
+        use usdfc_backend::gecko::GeckoClient;
+        use usdfc_backend::historical;
+        use usdfc_backend::rpc::RpcClient;
+        use usdfc_backend::subgraph::SubgraphClient;
 
         let rpc = RpcClient::new();
         let blockscout = BlockscoutClient::new();
@@ -658,8 +652,8 @@ pub async fn check_api_health() -> Result<ApiHealthStatus, ServerFnError> {
 pub async fn get_holder_count() -> Result<u64, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
-        use crate::cache::caches;
+        use usdfc_backend::blockscout::BlockscoutClient;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         if let Some(cached) = caches::HOLDER_COUNT.get("default") {
@@ -693,9 +687,9 @@ pub async fn get_holder_count() -> Result<u64, ServerFnError> {
 pub async fn get_order_book(maturity: Option<String>) -> Result<OrderBookData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::subgraph::SubgraphClient;
+        use usdfc_backend::subgraph::SubgraphClient;
         use usdfc_core::config::config;
-        use crate::cache::caches;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         let cache_key = format!("order_book_{}", maturity.as_deref().unwrap_or("default"));
@@ -711,12 +705,12 @@ pub async fn get_order_book(maturity: Option<String>) -> Result<OrderBookData, S
             .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
         // Convert orders to display format - skip orders with invalid data instead of using fake values
-        let convert_order = |o: &crate::subgraph::Order| -> Option<OrderData> {
+        let convert_order = |o: &usdfc_backend::subgraph::Order| -> Option<OrderData> {
             let amount = o.input_amount.parse::<f64>().ok()? / 1e18;
             let filled = o.filled_amount.parse::<f64>().ok()? / 1e18;
             let price = o.input_unit_price.parse::<f64>().ok()? / 10000.0;
             let maturity_ts = o.maturity.parse::<i64>().ok()?;
-            let apr = crate::subgraph::unit_price_to_apr(&o.input_unit_price, maturity_ts).ok()?;
+            let apr = usdfc_backend::subgraph::unit_price_to_apr(&o.input_unit_price, maturity_ts).ok()?;
 
             Some(OrderData {
                 id: o.id.clone(),
@@ -775,9 +769,9 @@ pub async fn get_recent_lending_trades(limit: Option<i32>) -> Result<Vec<Lending
 
     #[cfg(feature = "ssr")]
     {
-        use crate::subgraph::SubgraphClient;
-        use crate::subgraph::decode_currency;
-        use crate::cache::caches;
+        use usdfc_backend::subgraph::SubgraphClient;
+        use usdfc_backend::subgraph::decode_currency;
+        use usdfc_backend::cache::caches;
 
         // Check cache first
         let cache_key = format!("lending_trades_{}", limit);
@@ -796,7 +790,7 @@ pub async fn get_recent_lending_trades(limit: Option<i32>) -> Result<Vec<Lending
                 let price = tx.execution_price.as_ref()?.parse::<f64>().ok()? / 10000.0;
                 let maturity_ts = tx.maturity.parse::<i64>().ok()?;
                 let timestamp = tx.created_at.parse::<i64>().ok()?;
-                let apr = crate::subgraph::unit_price_to_apr(
+                let apr = usdfc_backend::subgraph::unit_price_to_apr(
                     tx.execution_price.as_ref()?,
                     maturity_ts
                 ).unwrap_or(0.0);
@@ -881,13 +875,13 @@ pub async fn get_advanced_chart_data(
 ) -> Result<ChartDataResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::gecko::GeckoClient;
-        use crate::rpc::RpcClient;
-        use crate::blockscout::BlockscoutClient;
-        use crate::subgraph::SubgraphClient;
+        use usdfc_backend::gecko::GeckoClient;
+        use usdfc_backend::rpc::RpcClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
+        use usdfc_backend::subgraph::SubgraphClient;
         use usdfc_core::config::config;
-        use crate::historical::MetricSnapshot;
-        use crate::cache::caches;
+        use usdfc_backend::historical::MetricSnapshot;
+        use usdfc_backend::cache::caches;
         use std::time::{SystemTime, UNIX_EPOCH, Instant};
         use rust_decimal::prelude::ToPrimitive;
 
@@ -1036,12 +1030,12 @@ pub async fn get_advanced_chart_data(
                                 Err(_) => continue,
                             };
                             if let Some(ref lend_price) = market.last_lend_unit_price {
-                                if let Ok(apr) = crate::subgraph::unit_price_to_apr(lend_price, maturity_ts) {
+                                if let Ok(apr) = usdfc_backend::subgraph::unit_price_to_apr(lend_price, maturity_ts) {
                                     best_lend = Some(best_lend.map_or(apr, |v| v.max(apr)));
                                 }
                             }
                             if let Some(ref borrow_price) = market.last_borrow_unit_price {
-                                if let Ok(apr) = crate::subgraph::unit_price_to_apr(borrow_price, maturity_ts) {
+                                if let Ok(apr) = usdfc_backend::subgraph::unit_price_to_apr(borrow_price, maturity_ts) {
                                     best_borrow = Some(best_borrow.map_or(apr, |v| v.max(apr)));
                                 }
                             }
@@ -1231,7 +1225,7 @@ pub async fn get_wallet_analytics(
 ) -> Result<WalletAnalyticsResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::blockscout::BlockscoutClient;
+        use usdfc_backend::blockscout::BlockscoutClient;
         use usdfc_core::config::config;
         use usdfc_core::error::ValidationError;
         use rust_decimal::Decimal;
@@ -1248,7 +1242,7 @@ pub async fn get_wallet_analytics(
             address.to_lowercase()
         } else if address.starts_with('f') {
             // Try to convert f4-style Filecoin address to EVM
-            match crate::address_conv::f4_to_evm(&address) {
+            match usdfc_backend::address_conv::f4_to_evm(&address) {
                 Ok(ev) => ev.to_lowercase(),
                 Err(e) => return Err(SfnError::ServerError(e.to_string())),
             }
@@ -1295,7 +1289,7 @@ pub async fn get_wallet_analytics(
             .map_err(|e| SfnError::ServerError(e.to_string()))?;
 
         // Filter transfers for this wallet and time window
-        let mut relevant: Vec<crate::blockscout::TransferWithTimestamp> = transfers
+        let mut relevant: Vec<usdfc_backend::blockscout::TransferWithTimestamp> = transfers
             .into_iter()
             .filter(|t| t.timestamp >= window_start && t.timestamp <= window_end)
             .filter(|t| {

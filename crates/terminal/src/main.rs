@@ -62,7 +62,7 @@ async fn main() {
 
     // Explicitly register all server functions (required on some platforms)
     use server_fn::axum::register_explicit;
-    use usdfc_backend::server_fn::*;
+    use usdfc_api::*;
 
     register_explicit::<GetProtocolMetrics>();
     register_explicit::<GetRecentTransactions>();
