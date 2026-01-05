@@ -54,8 +54,9 @@ RUN wget https://github.com/leptos-rs/cargo-leptos/releases/download/v0.3.2/carg
 # Copy source code - dependencies already built in cacher stage
 COPY . .
 
-# Build application with railway profile
-RUN cargo leptos build --release -p usdfc-analytics-terminal --bin-cargo-args="--profile=railway"
+# Build application with release profile
+# Use simple --release flag to avoid profile conflicts
+RUN cargo leptos build --release -p usdfc-analytics-terminal -vv
 
 # =============================================================================
 # Runtime stage - minimal final image
@@ -70,7 +71,7 @@ WORKDIR /app
 RUN adduser -D -s /bin/sh appuser
 
 # Copy binary and assets from builder
-COPY --from=builder /app/target/railway/usdfc-analytics-terminal /app/usdfc-analytics-terminal
+COPY --from=builder /app/target/release/usdfc-analytics-terminal /app/usdfc-analytics-terminal
 COPY --from=builder /app/target/site /app/site
 COPY --from=builder /app/public /app/public
 COPY --from=builder /app/Cargo.toml /app/Cargo.toml
