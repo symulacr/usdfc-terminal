@@ -496,6 +496,7 @@ pub struct TokenHolderInfo {
 
 /// Get top USDFC holders from Blockscout
 /// Cached for 300 seconds (5 minutes) as holder list changes slowly
+/// Note: Uses cursor-based pagination, offset parameter is ignored (use REST API /api/v1/holders for pagination)
 #[server(GetTopHolders, "/api")]
 pub async fn get_top_holders(limit: Option<u32>, offset: Option<u32>) -> Result<Vec<TokenHolderInfo>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -504,19 +505,20 @@ pub async fn get_top_holders(limit: Option<u32>, offset: Option<u32>) -> Result<
         use crate::config::config;
         use crate::cache::caches;
 
-        let limit = limit.unwrap_or(20).min(100); // Default 20, max 100 (increased from 50)
-        let offset = offset.unwrap_or(0);
-        let cache_key = format!("holders_{}_{}", limit, offset);
+        let _offset = offset; // Ignored for cursor-based API
+        let cache_key = format!("holders_first_page");
 
         // Check cache first
         if let Some(cached) = caches::TOKEN_HOLDERS.get(&cache_key) {
-            return Ok(cached);
+            // Take only the requested limit from cache
+            let limit = limit.unwrap_or(20).min(100) as usize;
+            return Ok(cached.into_iter().take(limit).collect());
         }
 
         let blockscout = BlockscoutClient::new();
 
-        // Fetch from Blockscout API with pagination support
-        let holders = blockscout.get_token_holders(&config().usdfc_token, limit, offset).await
+        // Fetch first page from Blockscout API (cursor-based pagination)
+        let (holders, _next_cursor) = blockscout.get_token_holders_cursor(&config().usdfc_token, None).await
             .map_err(|e| SfnError::ServerError(format!("Blockscout API error: {}", e)))?;
 
         let holder_info: Vec<TokenHolderInfo> = holders
@@ -530,7 +532,9 @@ pub async fn get_top_holders(limit: Option<u32>, offset: Option<u32>) -> Result<
         // Store in cache
         caches::TOKEN_HOLDERS.set(cache_key, holder_info.clone());
 
-        Ok(holder_info)
+        // Return only requested limit
+        let limit = limit.unwrap_or(20).min(100) as usize;
+        Ok(holder_info.into_iter().take(limit).collect())
     }
 
     #[cfg(not(feature = "ssr"))]

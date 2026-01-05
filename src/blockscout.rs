@@ -260,7 +260,8 @@ impl BlockscoutClient {
         let holders: Vec<TokenHolder> = data.items
             .into_iter()
             .map(|item| {
-                let value_wei = item.value.parse::<u128>()?;
+                let value_wei = item.value.parse::<u128>()
+                    .map_err(|_| ApiError::parse("token_balance", &item.value))?;
                 let value_decimal = Decimal::from(value_wei) / Decimal::from(10_u128.pow(18));
                 Ok(TokenHolder {
                     address: item.address.hash,
