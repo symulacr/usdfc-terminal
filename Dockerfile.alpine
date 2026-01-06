@@ -91,7 +91,7 @@ ENV LEPTOS_SITE_PKG_DIR="pkg"
 ENV LEPTOS_ENV="PROD"
 ENV RUST_LOG="info"
 ENV HOST=0.0.0.0
-ENV PORT=3000
+# PORT is provided dynamically by Railway at runtime
 ENV DATABASE_PATH=/app/data/analytics.db
 
 CMD ["/app/usdfc-analytics-terminal"]

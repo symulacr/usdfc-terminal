@@ -167,8 +167,15 @@ async fn main() {
         error: Option<String>,
     }
 
-    // Health check handler - comprehensive health status
-    async fn health_handler() -> Json<HealthStatus> {
+    // Simple health check - lightweight, returns immediately
+    // Used by Railway health checks - should respond quickly
+    async fn health_check() -> &'static str {
+        "healthy"
+    }
+
+    // Detailed health check handler - comprehensive health status
+    // Used for monitoring and diagnostics - may take longer
+    async fn health_detailed_handler() -> Json<HealthStatus> {
         use usdfc_backend::rpc::RpcClient;
         use usdfc_backend::blockscout::BlockscoutClient;
         use usdfc_backend::subgraph::SubgraphClient;
@@ -324,9 +331,11 @@ async fn main() {
     let app = Router::new()
         // REST API endpoints - MUST be before leptos_routes to take precedence
         .nest("/api", api_routes)
-        // Health check endpoints for Kubernetes/Docker
-        .route("/health", get(health_handler))
-        .route("/ready", get(ready_handler))
+        // Health check endpoints - multiple formats for different tools
+        .route("/api/health", get(health_check))           // Railway health check (lightweight)
+        .route("/api/health/detailed", get(health_detailed_handler))  // Detailed diagnostics
+        .route("/health", get(ready_handler))              // Kubernetes-style (lightweight)
+        .route("/ready", get(ready_handler))               // Readiness probe (lightweight)
         // Static files - MUST be before leptos_routes to prevent /*any from catching them
         .nest_service("/pkg", ServeDir::new(format!("{}/pkg", leptos_options.site_root)))
         // Leptos routes with SSR (this also handles server functions automatically)

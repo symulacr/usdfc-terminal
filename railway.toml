@@ -6,4 +6,4 @@ dockerfilePath = "Dockerfile.alpine"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 healthcheckPath = "/api/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 300  # Increased from 100 to allow for startup and external API initialization
