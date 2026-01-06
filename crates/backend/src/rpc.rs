@@ -264,40 +264,43 @@ impl RpcClient {
         Ok(wei / divisor)
     }
 
-    /// Get total system debt from TroveManager
+    /// Get total system debt by aggregating all individual trove debts
+    ///
+    /// USDFC's TroveManager contract doesn't implement the standard Liquity V1
+    /// getEntireSystemDebt() function. Instead, we aggregate individual trove debts
+    /// using MultiTroveGetter, which provides 100% accurate real-time debt data.
     pub async fn get_total_debt(&self) -> ApiResult<Decimal> {
-        // getEntireSystemDebt() function signature: 0x284ce5d8
-        let data = "0x284ce5d8";
-        let result = self.eth_call(&config().trove_manager, data).await?;
+        let mut total_debt = Decimal::ZERO;
+        let batch_size = 100;
+        let mut start_idx = 0;
 
-        let value = u128::from_str_radix(result.trim_start_matches("0x"), 16)
-            .map_err(|e| ApiError::RpcError(format!("Parse error: {}", e)))?;
+        loop {
+            let troves = self.get_multiple_sorted_troves(start_idx, batch_size).await?;
 
-        let wei = Decimal::from_i128_with_scale(value as i128, 0);
-        let divisor = Decimal::from_i128_with_scale(10_i128.pow(18), 0);
-        Ok(wei / divisor)
+            if troves.is_empty() {
+                break;
+            }
+
+            // Sum up debt from all troves in this batch
+            for trove in &troves {
+                total_debt += trove.debt;
+            }
+
+            // If we got fewer troves than requested, we've reached the end
+            if (troves.len() as u32) < batch_size {
+                break;
+            }
+
+            start_idx += batch_size as i32;
+        }
+
+        Ok(total_debt)
     }
 
     /// Calculate TCR (Total Collateral Ratio)
     pub async fn get_tcr(&self) -> ApiResult<Decimal> {
         // TCR = (total_collateral * fil_price) / total_debt * 100
-        //
-        // NOTE: getEntireSystemDebt() can revert on some contract versions.
-        // Fallback to using total USDFC supply as an approximation of system debt,
-        // since in Liquity-style protocols: total_debt ≈ total_usdfc_supply
-        let total_debt = match self.get_total_debt().await {
-            Ok(debt) => debt,
-            Err(e) => {
-                // CRITICAL: Log fallback behavior for monitoring
-                tracing::warn!(
-                    "get_total_debt() failed with error: {}. Falling back to total supply as debt approximation. \
-                    This may indicate contract incompatibility or RPC issues.",
-                    e
-                );
-                // Fallback: use USDFC total supply as debt approximation
-                self.get_total_supply().await?
-            }
-        };
+        let total_debt = self.get_total_debt().await?;
         let total_collateral = self.get_total_collateral().await?;
         let fil_price = self.get_fil_price().await?;
 
