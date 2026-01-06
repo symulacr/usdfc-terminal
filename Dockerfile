@@ -23,9 +23,8 @@ RUN rustup toolchain install nightly && \
     rustup default nightly && \
     rustup target add wasm32-unknown-unknown
 
-# Install cargo-leptos
-RUN curl --proto '=https' --tlsv1.2 -LsSf \
-    https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.5/cargo-leptos-installer.sh | sh
+# Install cargo-leptos (use cargo install for reliability)
+RUN cargo install cargo-leptos --locked
 
 WORKDIR /app
 
