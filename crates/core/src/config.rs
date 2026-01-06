@@ -140,7 +140,7 @@ impl Config {
 
             host: std::env::var("HOST").expect("HOST must be set"),
             port: std::env::var("PORT")
-                .expect("PORT must be set")
+                .unwrap_or_else(|_| "3000".to_string())  // Railway provides PORT at runtime, fallback to 3000 for local
                 .parse()
                 .expect("PORT must be a valid integer"),
 
