@@ -46,7 +46,7 @@ async fn main() {
     let _ = dotenvy::dotenv();
 
     // Get Leptos configuration
-    let conf = get_configuration(Some("Cargo.toml")).await.unwrap();
+    let conf = get_configuration(Some("crates/terminal/Cargo.toml")).await.unwrap();
     let mut leptos_options = conf.leptos_options;
 
     // Derive bind address from unified Config (env-backed on server, defaults on client)
