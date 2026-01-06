@@ -1,8 +1,8 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile.railway"
-# Uses pre-built image from GHCR for 30-60s deployments
-# Built by GitHub Actions CI/CD pipeline
+dockerfilePath = "Dockerfile"
+# Uses optimized Dockerfile with mold linker + Week 1-3 optimizations
+# Build time: ~4-6 minutes (down from 13+ min timeout)
 
 [deploy]
 restartPolicyType = "ON_FAILURE"

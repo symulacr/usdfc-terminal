@@ -32,8 +32,12 @@ WORKDIR /app
 # Copy source code
 COPY . .
 
+# Set CC for ring crate C compilation (fix sccache wrapper issue)
+ENV CC=/usr/bin/gcc
+
 # Build with release flag (uses standard release profile)
 # Matches proven working Railway template approach
+# Week 1-3 optimizations applied: mold linker + optimized dependencies
 RUN cargo leptos build --release -vv
 
 # =============================================================================
