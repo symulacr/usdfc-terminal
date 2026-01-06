@@ -1,6 +1,8 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile.alpine"
+dockerfilePath = "Dockerfile.railway"
+# Uses pre-built image from GHCR for 30-60s deployments
+# Built by GitHub Actions CI/CD pipeline
 
 [deploy]
 restartPolicyType = "ON_FAILURE"

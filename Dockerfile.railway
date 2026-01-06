@@ -1,0 +1,40 @@
+# =============================================================================
+# Railway Deployment Dockerfile - Pull from GHCR
+# =============================================================================
+#
+# This Dockerfile is used ONLY for Railway deployment.
+# It pulls the pre-built image from GitHub Container Registry (GHCR)
+# instead of rebuilding from source.
+#
+# Benefits:
+# - Deployment time: 30-60 seconds (vs 8-12 minutes building)
+# - No Railway build timeout issues
+# - Consistent images between CI and production
+# - Faster rollbacks (just change tag)
+#
+# How it works:
+# 1. GitHub Actions builds and pushes image to GHCR
+# 2. Railway pulls this Dockerfile
+# 3. Railway pulls the pre-built image from GHCR
+# 4. Railway deploys in ~30-60 seconds
+#
+# Configuration:
+# - Railway will automatically inject PORT environment variable
+# - Other environment variables configured in Railway dashboard
+#
+# =============================================================================
+
+FROM ghcr.io/symulacr/usdfc-terminal:latest
+
+# Railway environment detection
+ENV RAILWAY_ENVIRONMENT=production
+
+# Expose port (Railway will inject dynamic PORT)
+EXPOSE ${PORT:-3000}
+
+# Health check for Railway
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
+
+# Start application
+CMD ["/app/usdfc-analytics-terminal"]
