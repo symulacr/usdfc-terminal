@@ -94,3 +94,27 @@ strip = true
 panic = "abort"
 debug = false          # Disable debug info (saves 1-2 min in CI)
 incremental = false    # Disable incremental (not useful in CI)
+
+# CI profile: Optimized for build speed in CI/CD pipelines
+# Trades some runtime performance for significantly faster compilation
+[profile.ci]
+inherits = "release"
+lto = false            # Disable LTO entirely (saves 90-120s in link time)
+opt-level = 2          # Good optimization without extreme compile time
+codegen-units = 16     # Maximum parallelism for faster builds
+strip = true
+panic = "abort"
+debug = false
+incremental = false    # Always false in CI environments
+
+# Production profile: Optimized for maximum runtime performance
+# Used for final production builds when build time is not critical
+[profile.production]
+inherits = "release"
+lto = "thin"           # Thin LTO: good performance, reasonable compile time
+opt-level = 3          # Maximum optimization level
+codegen-units = 1      # Single codegen unit for best optimization
+strip = true
+panic = "abort"
+debug = false
+incremental = false
