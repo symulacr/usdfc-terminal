@@ -46,7 +46,8 @@ reqwest = { version = "0.11", default-features = false, features = ["json", "rus
 rusqlite = { version = "0.31", features = ["bundled"] }
 
 # WASM
-wasm-bindgen = "0.2"
+# Pinned to 0.2.105 to match cargo-leptos 0.2.47's bundled wasm-bindgen-cli
+wasm-bindgen = "=0.2.105"
 console_error_panic_hook = "0.1"
 
 # Utils

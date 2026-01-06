@@ -24,12 +24,9 @@ RUN rustup toolchain install nightly && \
     rustup target add wasm32-unknown-unknown
 
 # Install cargo-leptos (use pre-compiled binary - much faster than cargo install)
+# cargo-leptos 0.2.47 includes wasm-bindgen-cli 0.2.105 (project downgraded to match)
 RUN curl --proto '=https' --tlsv1.2 -LsSf \
     https://github.com/leptos-rs/cargo-leptos/releases/download/v0.2.47/cargo-leptos-installer.sh | sh
-
-# Install wasm-bindgen-cli to match project's wasm-bindgen version (0.2.106)
-# This prevents bindgen schema version mismatch errors
-RUN cargo install wasm-bindgen-cli --version 0.2.106 --locked
 
 WORKDIR /app
 
