@@ -6,6 +6,7 @@
 
 use leptos::*;
 use leptos::server_fn::error::NoCustomError;
+use rust_decimal::Decimal;
 
 // Re-export all types from core for convenience
 pub use usdfc_core::types::*;
