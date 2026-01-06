@@ -199,8 +199,8 @@ pub fn AdvancedAnalytics() -> impl IntoView {
     let chart_data = create_rw_signal(ChartDataResponse::default());
 
     // Toast notification state for share button
-    let (show_toast, _set_show_toast) = create_signal(false);
-    let (toast_message, _set_toast_message) = create_signal(String::new());
+    let (show_toast, set_show_toast) = create_signal(false);
+    let (toast_message, set_toast_message) = create_signal(String::new());
 
     // Initialize state from URL on page load (client-side only)
     #[cfg(feature = "hydrate")]

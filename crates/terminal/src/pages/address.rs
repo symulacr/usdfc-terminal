@@ -41,7 +41,7 @@ pub fn AddressDetail() -> impl IntoView {
     let (timeframe, set_timeframe) = create_signal(String::from("24h"));
 
     // Copy state
-    let (copied, _set_copied) = create_signal(false);
+    let (copied, set_copied) = create_signal(false);
 
     // Fetch address info
     let address_info = create_resource(
