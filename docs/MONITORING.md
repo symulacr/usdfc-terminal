@@ -71,9 +71,40 @@ sqlite3 data/metrics_history.db "DELETE FROM metric_snapshots WHERE timestamp < 
 
 - **Response Time**: Target < 500ms p99
 - **Error Rate**: Target < 0.1%
-- **Memory Usage**: Target < 512MB
+- **Memory Usage**: Target < 512MB (Production: 0.58 GB)
 - **DB Size**: Target < 500MB
 - **Cache Hit Rate**: Target > 80%
+
+---
+
+## Railway Deployment Metrics
+
+**Production**: https://usdfc-terminal-cleaned-production.up.railway.app/
+
+### Resource Usage
+
+| Metric | Value |
+|--------|-------|
+| RAM | 0.58 GB |
+| CPU | 0.03 vCPU |
+| Egress | ~0.00 GB |
+| Cost | ~$0.0002 per deployment |
+
+### Railway CLI Commands
+
+```bash
+# View logs
+railway logs
+
+# Check deployment status
+railway status
+
+# View metrics
+railway metrics
+
+# Shell access
+railway shell
+```
 
 ---
 

@@ -2,6 +2,8 @@
 
 Real-time analytics for USDFC stablecoin on Filecoin. Unified REST API aggregating 4 data sources into 10 developer-friendly endpoints.
 
+**Production**: https://usdfc-terminal-cleaned-production.up.railway.app/
+
 ## Problem
 USDFC data is fragmented across Filecoin RPC, Blockscout, Secured Finance subgraph, and GeckoTerminal—each with different auth, rate limits, and formats.
 
@@ -28,119 +30,62 @@ cargo leptos build --release
 
 ## API Usage
 ```bash
-# Get price
+# Production
+curl https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/price
+curl https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/metrics
+
+# Local development
 curl http://localhost:3000/api/v1/price
-
-# Get protocol metrics
 curl http://localhost:3000/api/v1/metrics
-
-# Get troves
-curl http://localhost:3000/api/v1/troves?limit=50
 ```
 
 See [API.md](./API.md) for all 10 endpoints.
 
-## Screenshots
-<!-- Add after deployment -->
-| Dashboard | Protocol | Lending |
-|-----------|----------|---------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Protocol](docs/screenshots/protocol.png) | ![Lending](docs/screenshots/lending.png) |
+## Live Demo
+
+👉 **[Try the live application](https://usdfc-terminal-cleaned-production.up.railway.app/)**
 
 ## Architecture
-```mermaid
-flowchart TB
-    subgraph Terminal["USDFC Analytics Terminal"]
-        API["REST API<br/><i>10 endpoints</i>"]
-        SF["Server Functions<br/><i>15 async fns</i>"]
-        AGG["Aggregation Layer + Cache"]
-    end
 
-    subgraph Sources["Data Sources"]
-        FIL["Filecoin RPC"]
-        BLOCK["Blockscout API"]
-        SEC["Secured Finance"]
-        GECKO["GeckoTerminal"]
-    end
-
-    API --> SF
-    SF --> AGG
-    AGG --> FIL
-    AGG --> BLOCK
-    AGG --> SEC
-    AGG --> GECKO
-```
-
-## Data Flow
-
-```mermaid
-flowchart LR
-    subgraph External["External APIs"]
-        Blockscout["Blockscout API"]
-        Gecko["GeckoTerminal"]
-        Goldsky["Goldsky Subgraph"]
-        RPC["Filecoin RPC"]
-    end
-
-    subgraph Server["Server Layer"]
-        Cache["Cache Layer<br/>(TTL: 30-300s)"]
-        ServerFn["Server Functions<br/>(15 async fns)"]
-        SSR["SSR Rendering<br/>(<5ms)"]
-    end
-
-    subgraph Client["Client Layer"]
-        WASM["WASM Hydration"]
-        Browser["User Browser"]
-    end
-
-    Blockscout --> Cache
-    Gecko --> Cache
-    Goldsky --> Cache
-    RPC --> Cache
-
-    Cache --> ServerFn
-    ServerFn --> SSR
-    SSR --> WASM
-    WASM --> Browser
-
-    Browser -->|"API Requests"| ServerFn
-```
-
-## API Structure
-
-```mermaid
-%%{init: {'theme': 'neutral'}}%%
-mindmap
-  root((USDFC API))
-    Health
-      /api/v1/health
-    Price
-      /api/v1/price
-    Protocol
-      /api/v1/metrics
-      /api/v1/troves
-    Market
-      /api/v1/holders
-      /api/v1/transactions
-    Lending
-      /api/v1/lending
-    Historical
-      /api/v1/history
-```
+4-crate Cargo workspace with SSR + WASM hydration. See [Architecture Documentation](./docs/ARCHITECTURE.md) for system diagrams, data flow, and workspace structure.
 
 ## Tech Stack
-- **Leptos 0.6** - Full-stack Rust (SSR + WASM)
-- **Axum** - HTTP server with security headers
-- **SQLite** - Metrics persistence (7-day history)
-- **Tokio** - Async runtime
+
+**Core Framework**
+- Leptos 0.6 - Full-stack (SSR + WASM hydration, 16 server functions)
+- Axum 0.7 - HTTP server with Tower middleware
+- Tokio - Multi-threaded async runtime
+
+**Data & Resilience**
+- RuSQLite - 7-day historical metrics (bundled)
+- Custom TTL Cache - In-memory (10s-300s TTL per endpoint)
+- Circuit Breaker - Auto-recovery for external APIs
+
+**External Integrations**
+- Filecoin RPC - MultiTroveGetter aggregation
+- Blockscout API - Token transfers, holders
+- Secured Finance Subgraph - GraphQL lending data
+- GeckoTerminal API - DEX prices, volume
+
+**Build & Deploy**
+- cargo-leptos 0.2.47 - Dual compilation (server + WASM)
+- wasm-bindgen 0.2.105 - Rust/JS interop
+- 4 Custom profiles - Railway/CI/production optimized
+
+[Complete tech stack →](./docs/ARCHITECTURE.md)
 
 ## Performance
 - SSR render: <5ms
 - API response: <100ms (p99)
 - Cache hit: >90%
+- Railway hosting: ~$0.0002 per deployment
+- Resources: 0.58 GB RAM, 0.03 vCPU
 
 ## Documentation
 - [API Reference](./API.md)
 - [Installation](./INSTALL.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Monitoring](./docs/MONITORING.md)
 - [Environment Variables](./.env.example)
 
 ## License

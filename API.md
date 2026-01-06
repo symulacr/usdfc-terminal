@@ -31,7 +31,7 @@ Complete REST API documentation for the USDFC Analytics Terminal.
 ### Production
 
 ```
-https://usdfc-terminal.symulacr.dev/api/v1
+https://usdfc-terminal-cleaned-production.up.railway.app/api/v1
 ```
 
 ### Local Development
@@ -149,7 +149,7 @@ Returns API health status for all data sources (RPC, Blockscout, Subgraph, Gecko
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/health"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/health"
 ```
 
 **Example Response:**
@@ -220,7 +220,7 @@ Returns current USDFC price data from GeckoTerminal DEX aggregator.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/price"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/price"
 ```
 
 **Example Response:**
@@ -270,7 +270,7 @@ Returns protocol-wide metrics including total supply, collateral, TCR, and more.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/metrics"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/metrics"
 ```
 
 **Example Response:**
@@ -333,7 +333,7 @@ Returns historical volume data for charting.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/history?metric=volume&from=1703376000&to=1703980800&resolution=1d"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/history?metric=volume&from=1703376000&to=1703980800&resolution=1d"
 ```
 
 **Example Response:**
@@ -401,7 +401,7 @@ Returns a paginated list of all active troves (collateralized debt positions).
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/troves?limit=10&offset=0"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/troves?limit=10&offset=0"
 ```
 
 **Example Response:**
@@ -470,7 +470,7 @@ Returns trove information for a specific address.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/troves/0x1234567890abcdef1234567890abcdef12345678"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/troves/0x1234567890abcdef1234567890abcdef12345678"
 ```
 
 **Example Response:**
@@ -515,7 +515,7 @@ Returns recent USDFC token transactions.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/transactions?limit=5&offset=0"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/transactions?limit=5&offset=0"
 ```
 
 **Example Response:**
@@ -594,7 +594,7 @@ Returns detailed information about an address including USDFC balance and activi
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/address/0x1234567890abcdef1234567890abcdef12345678"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/address/0x1234567890abcdef1234567890abcdef12345678"
 ```
 
 **Example Response:**
@@ -646,7 +646,7 @@ Returns lending market data from Secured Finance subgraph.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/lending"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/lending"
 ```
 
 **Example Response:**
@@ -713,7 +713,7 @@ Returns top USDFC token holders.
 **Example Request:**
 
 ```bash
-curl -X GET "https://usdfc-terminal.symulacr.dev/api/v1/holders?limit=10"
+curl -X GET "https://usdfc-terminal-cleaned-production.up.railway.app/api/v1/holders?limit=10"
 ```
 
 **Example Response:**

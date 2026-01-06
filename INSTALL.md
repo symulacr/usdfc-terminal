@@ -391,6 +391,48 @@ Expected binary sizes:
 
 ---
 
+## Railway Deployment
+
+### Quick Deploy to Railway
+
+Railway provides automatic deployments from GitHub with minimal configuration.
+
+**Resources**: 0.58 GB RAM, 0.03 vCPU | **Cost**: ~$0.0002 per deployment
+
+```bash
+# Install Railway CLI
+npm i -g @railway/cli
+
+# Login and initialize
+railway login
+railway init
+
+# Link to GitHub repo (auto-deploy enabled)
+railway link
+
+# Add environment variables
+railway variables set RPC_URL=https://api.node.glif.io/rpc/v1
+railway variables set SUBGRAPH_URL=<your-subgraph-url>
+railway variables set BLOCKSCOUT_URL=https://filecoin.blockscout.com/api/v2
+railway variables set GECKOTERMINAL_URL=https://api.geckoterminal.com/api/v2/networks/filecoin
+
+# Deploy
+railway up
+```
+
+**Production URL**: https://usdfc-terminal-cleaned-production.up.railway.app/
+
+### Railway Environment Variables
+
+Required variables (see `.env.example`):
+- All contract addresses (USDFC_TOKEN, TROVE_MANAGER, etc.)
+- All API endpoints (RPC_URL, SUBGRAPH_URL, etc.)
+- All refresh intervals (REFRESH_INTERVAL_FAST, etc.)
+
+Railway auto-provides: `PORT`, `RAILWAY_ENVIRONMENT`
+
+---
+
 ## Docker Deployment
 
 ### Using the Dockerfile
