@@ -463,3 +463,17 @@ QUICK_START_OPTIMIZATION.md
 RAILWAY_BUILD_ANALYSIS.md
 RAILWAY_RUNTIME_FAILURE_ANALYSIS.md
 SOLUTION_B_STATUS.md
+
+# ==============================================================================
+# 17. ROOT TEST SCRIPTS & CLEANUP PLANS (Development only)
+# ==============================================================================
+# Keep test scripts out of root directory
+/*.sh
+!/*.example.sh
+
+# Claude Code personal config
+.claude.md
+
+# Repository cleanup planning documents
+REPO_CLEANUP_PLAN.md
+CLEANUP_BEFORE_AFTER.md
