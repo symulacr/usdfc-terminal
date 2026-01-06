@@ -6,12 +6,13 @@
 
 use leptos::*;
 use leptos::server_fn::error::NoCustomError;
-use rust_decimal::Decimal;
 
 // Re-export all types from core for convenience
 pub use usdfc_core::types::*;
 
 /// Type alias for server function errors with default error type
+/// Used in feature-gated code (50+ occurrences)
+#[allow(dead_code)]
 type SfnError = ServerFnError<NoCustomError>;
 
 // ============================================================================
@@ -826,6 +827,7 @@ pub async fn get_recent_lending_trades(limit: Option<i32>) -> Result<Vec<Lending
 
 /// Calculate TCR time series from price history
 /// TCR = (Collateral_FIL × FIL_Price_USD) / Supply_USDFC × 100
+#[cfg(feature = "ssr")]
 fn calculate_tcr_from_price_history(
     price_candles: &[TVCandle],
     supply: f64,
@@ -848,6 +850,7 @@ fn calculate_tcr_from_price_history(
 /// Calculate liquidity proxy from trading volume
 /// Uses volume directly as a stable proxy for market liquidity/activity
 /// Simpler and more stable than Volume/Impact calculation
+#[cfg(feature = "ssr")]
 fn calculate_liquidity_from_volume_impact(
     price_candles: &[TVCandle],
 ) -> Vec<(i64, f64)> {

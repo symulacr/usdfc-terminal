@@ -12,6 +12,7 @@ use usdfc_core::types::Transaction;
 use std::collections::HashMap;
 
 /// Generate CSV content from transaction data
+#[allow(dead_code)]
 fn generate_csv(transactions: &[Transaction]) -> String {
     let mut csv = String::from("Hash,Type,Amount,From,To,Timestamp,Block,Status\n");
     for tx in transactions {
@@ -59,6 +60,7 @@ fn download_csv(filename: &str, content: &str) {
     link.click();
 }
 
+#[allow(dead_code)]
 #[cfg(not(feature = "hydrate"))]
 fn download_csv(_filename: &str, _content: &str) {
     // No-op on server side

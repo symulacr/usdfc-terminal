@@ -241,7 +241,7 @@ pub fn EntityRegistry() -> impl IntoView {
 /// Copy-to-clipboard button with feedback
 #[component]
 fn CopyButton(address: String) -> impl IntoView {
-    let (copied, set_copied) = create_signal(false);
+    let (copied, _set_copied) = create_signal(false);
     let address_clone = address.clone();
 
     let on_click = move |_| {

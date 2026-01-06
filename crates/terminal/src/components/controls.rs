@@ -175,7 +175,7 @@ pub fn MetricBar(
     max_visible: usize,
 ) -> impl IntoView {
     let show_overflow = create_rw_signal(false);
-    let dropdown_ref = create_node_ref::<Div>();
+    let _dropdown_ref = create_node_ref::<Div>();
 
     // Click-outside handler to close dropdown
     #[cfg(feature = "hydrate")]
@@ -188,7 +188,7 @@ pub fn MetricBar(
                 // Add click listener to document when dropdown is open
                 let closure = Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
                     if let Some(target) = event.target() {
-                        if let Some(dropdown_el) = dropdown_ref.get() {
+                        if let Some(dropdown_el) = _dropdown_ref.get() {
                             let target_node: web_sys::Node = target.unchecked_into();
                             // Check if click is outside the dropdown container
                             if !dropdown_el.contains(Some(&target_node)) {

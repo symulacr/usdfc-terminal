@@ -780,7 +780,7 @@ fn TransactionDetailModal(
     on_close: Callback<()>,
     on_address_click: Callback<String>,
 ) -> impl IntoView {
-    let (copied, set_copied) = create_signal(false);
+    let (copied, _set_copied) = create_signal(false);
 
     let tx_hash = transaction.hash.clone();
     let tx_hash_for_copy = transaction.hash.clone();
